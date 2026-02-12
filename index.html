@@ -1,147 +1,205 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Impact Brief</title>
+import React, { useEffect, useState } from "react";
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
 
-  <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#0f172a" />
+type NewsItem = {
+  title_ja: string;
+  one_sentence: string;
+  summary_3lines: string[];
+  what_happened: string[];
+  why_important: string[];
+  action_advice: string[];
+  impact_level: "High" | "Medium" | "Low";
+  original_url: string;
+};
 
-  <style>
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #0f172a;
-      color: #fff;
-      padding: 20px;
+export default function Home() {
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchNews = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await fetch("https://ai-impact-brief.vercel.app/api/today");
+      const data = await res.json();
+
+      if (!data.news) throw new Error("Invalid response");
+
+      setNews(data.news);
+    } catch (err: any) {
+      setError("Failed to load news");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    h1 {
-      font-size: 28px;
-      margin-bottom: 4px;
-    }
+  useEffect(() => {
+    fetchNews();
+  }, []);
 
-    .subtitle {
-      color: #94a3b8;
-      margin-bottom: 30px;
-    }
+  // ✅ 日本時間で英語日付生成
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const formattedDate = formatter.format(now);
 
-    .card {
-      background: #1e293b;
-      padding: 20px;
-      border-radius: 16px;
-      margin-bottom: 24px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    }
+  const editionNumber = Math.floor(
+    (now.getTime() - new Date("2026-01-01").getTime()) / (1000 * 60 * 60 * 24)
+  );
 
-    .badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      margin-bottom: 12px;
-      font-weight: 600;
-    }
+  return (
+    <ScrollView style={styles.container}>
+      <Text style={styles.brand}>AI Impact Brief</Text>
+      <Text style={styles.subtitle}>Today's AI News</Text>
 
-    .High { background: #dc2626; }
-    .Medium { background: #f59e0b; }
-    .Low { background: #16a34a; }
+      {/* 🔥 高級日付エリア */}
+      <View style={styles.metaContainer}>
+        <Text style={styles.dateText}>{formattedDate}</Text>
+        <Text style={styles.editionText}>Edition {editionNumber}</Text>
+      </View>
 
-    .highlight {
-      background: #334155;
-      padding: 12px;
-      border-radius: 12px;
-      margin: 16px 0;
-    }
+      {loading && <ActivityIndicator size="large" color="#3B82F6" />}
 
-    h3 {
-      margin-top: 20px;
-      font-size: 16px;
-      color: #cbd5e1;
-    }
+      {error !== "" && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={fetchNews}>
+            <Text style={styles.retry}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-    ul {
-      padding-left: 18px;
-    }
+      {news.map((item, index) => (
+        <View key={index} style={styles.card}>
+          <View style={[styles.badge, badgeColor(item.impact_level)]}>
+            <Text style={styles.badgeText}>{item.impact_level}</Text>
+          </View>
 
-    .button {
-      display: inline-block;
-      margin-top: 16px;
-      padding: 10px 18px;
-      background: #3b82f6;
-      color: #fff;
-      text-decoration: none;
-      border-radius: 8px;
-    }
+          <Text style={styles.title}>{item.title_ja}</Text>
+          <Text style={styles.summary}>{item.one_sentence}</Text>
 
-    .error {
-      color: #f87171;
-      margin-top: 20px;
-    }
-  </style>
-</head>
-<body>
+          <Section title="何が起きた？" items={item.what_happened} />
+          <Section title="なぜ重要？" items={item.why_important} />
+          <Section title="行動アドバイス" items={item.action_advice} />
 
-  <h1>AI Impact Brief</h1>
-  <div class="subtitle">Today's AI News</div>
+          <TouchableOpacity>
+            <Text style={styles.link}>元記事を読む</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
 
-  <div id="content">読み込み中...</div>
+function Section({ title, items }: { title: string; items: string[] }) {
+  return (
+    <View style={{ marginTop: 10 }}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {items.map((line, i) => (
+        <Text key={i} style={styles.bullet}>• {line}</Text>
+      ))}
+    </View>
+  );
+}
 
-  <script>
-    async function loadNews() {
-      try {
-        const res = await fetch("https://ai-impact-brief.vercel.app/api/today");
-        const data = await res.json();
+function badgeColor(level: string) {
+  switch (level) {
+    case "High":
+      return { backgroundColor: "#DC2626" };
+    case "Medium":
+      return { backgroundColor: "#F59E0B" };
+    case "Low":
+      return { backgroundColor: "#16A34A" };
+    default:
+      return {};
+  }
+}
 
-        const items = data.items;
-
-        document.getElementById("content").innerHTML =
-          items.map((brief) => `
-            <div class="card">
-              <div class="badge ${brief.impact_level}">
-                ${brief.impact_level}
-              </div>
-
-              <h2>${brief.title_ja}</h2>
-
-              <div class="highlight">
-                ${brief.one_sentence}
-              </div>
-
-              <h3>何が起きた？</h3>
-              <ul>
-                ${(brief.what_happened || []).map(i => `<li>${i}</li>`).join("")}
-              </ul>
-
-              <h3>なぜ重要？</h3>
-              <ul>
-                ${(brief.why_important || []).map(i => `<li>${i}</li>`).join("")}
-              </ul>
-
-              <h3>行動アドバイス</h3>
-              <ul>
-                ${(brief.action_advice || []).map(i => `<li>${i}</li>`).join("")}
-              </ul>
-
-              <a class="button" href="${brief.original_url}" target="_blank">
-                元記事を読む
-              </a>
-            </div>
-          `).join("");
-
-      } catch (err) {
-        document.getElementById("content").innerHTML =
-          `<div class="error">ニュースの取得に失敗しました</div>`;
-      }
-    }
-
-    loadNews();
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
-    }
-  </script>
-
-</body>
-</html>
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0F172A",
+    padding: 16,
+  },
+  brand: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  subtitle: {
+    color: "#94A3B8",
+    marginBottom: 10,
+  },
+  metaContainer: {
+    marginBottom: 20,
+  },
+  dateText: {
+    color: "#94A3B8",
+    letterSpacing: 1,
+    fontSize: 13,
+  },
+  editionText: {
+    color: "#64748B",
+    fontSize: 12,
+  },
+  card: {
+    backgroundColor: "#1E293B",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+  },
+  badge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 12,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 6,
+  },
+  summary: {
+    backgroundColor: "#334155",
+    padding: 10,
+    borderRadius: 10,
+    color: "#E2E8F0",
+  },
+  sectionTitle: {
+    marginTop: 8,
+    fontWeight: "600",
+    color: "#CBD5E1",
+  },
+  bullet: {
+    color: "#CBD5E1",
+    marginTop: 4,
+  },
+  link: {
+    marginTop: 10,
+    color: "#3B82F6",
+    fontWeight: "600",
+  },
+  errorBox: {
+    marginVertical: 20,
+  },
+  errorText: {
+    color: "#F87171",
+  },
+  retry: {
+    color: "#3B82F6",
+    marginTop: 5,
+  },
+});
