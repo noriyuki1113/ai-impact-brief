@@ -3,118 +3,102 @@ export default async function handler(req, res) {
     const guardianKey = process.env.GUARDIAN_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
 
-    if (!guardianKey) {
-      return res.status(500).json({ error: "Missing GUARDIAN_API_KEY" });
-    }
-    if (!openaiKey) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
+    if (!guardianKey || !openaiKey) {
+      return res.status(500).json({ error: "Missing API keys" });
     }
 
-    // 1️⃣ GuardianからAI関連ニュースを3件取得
+    // ========= 1. Guardian取得 =========
     const guardianRes = await fetch(
-      `https://content.guardianapis.com/search?q=artificial%20intelligence&section=technology&show-fields=headline,trailText,body,shortUrl&order-by=newest&page-size=3&api-key=${guardianKey}`
+      `https://content.guardianapis.com/search?q=AI&section=technology&show-fields=headline,trailText,body&api-key=${guardianKey}`
     );
 
     const guardianData = await guardianRes.json();
+    const article = guardianData?.response?.results?.[0];
 
-    if (!guardianData.response?.results?.length) {
+    if (!article) {
       return res.status(500).json({ error: "No articles found" });
     }
 
-    const articles = guardianData.response.results;
+    const content = article.fields.body.replace(/<[^>]+>/g, "");
 
-    // 2️⃣ 各記事をOpenAIで分析
-    const analyses = await Promise.all(
-      articles.map(async (article) => {
-        const prompt = `
-You are an institutional-level strategic analyst.
-Write a structured strategic analysis in Japanese for executives and investors.
-
-Return ONLY valid JSON with these keys:
-title_ja
-impact_level (High / Medium / Low)
-executive_summary
-what_happened (array of bullet points)
-structural_implication (array)
-risks (array)
-opportunities (array)
-watch_indicators (array)
-action_advice (array)
-
-Article:
-Title: ${article.webTitle}
-Body:
-${article.fields.body.substring(0, 6000)}
-`;
-
-        const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${openaiKey}`,
+    // ========= 2. OpenAI要約 =========
+    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Summarize in Japanese. Structured, calm analytical tone. Extract key entities separately."
           },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: "You output only valid JSON." },
-              { role: "user", content: prompt },
-            ],
-            temperature: 0.3,
-          }),
-        });
+          {
+            role: "user",
+            content: `
+Article:
+${content}
 
-        const aiData = await aiRes.json();
-
-        const content = aiData.choices?.[0]?.message?.content;
-
-        if (!content) {
-          throw new Error("Invalid OpenAI response");
-        }
-
-        const parsed = JSON.parse(content);
-
-        // 3️⃣ 厳密構造チェック
-        const requiredFields = [
-          "title_ja",
-          "impact_level",
-          "executive_summary",
-          "what_happened",
-          "structural_implication",
-          "risks",
-          "opportunities",
-          "watch_indicators",
-          "action_advice",
-        ];
-
-        for (const field of requiredFields) {
-          if (!parsed[field]) {
-            throw new Error(`Missing field: ${field}`);
+Return JSON:
+{
+  "summary": "...",
+  "entities": ["Elon Musk", "Relx", ...]
+}`
           }
+        ],
+        temperature: 0.3
+      }),
+    });
+
+    const openaiData = await openaiRes.json();
+    const aiOutput = JSON.parse(openaiData.choices[0].message.content);
+
+    let summary = aiOutput.summary;
+    const entities = aiOutput.entities || [];
+
+    // ========= 3. Wikipedia変換関数 =========
+    async function getJapaneseName(name) {
+      try {
+        const wikiRes = await fetch(
+          `https://en.wikipedia.org/w/api.php?action=query&prop=langlinks&titles=${encodeURIComponent(
+            name
+          )}&lllang=ja&format=json&origin=*`
+        );
+
+        const wikiData = await wikiRes.json();
+        const pages = wikiData.query.pages;
+        const page = Object.values(pages)[0];
+
+        if (page.langlinks && page.langlinks.length > 0) {
+          return page.langlinks[0]["*"];
         }
 
-        return {
-          ...parsed,
-          original_url: article.webUrl,
-        };
-      })
-    );
+        return name;
+      } catch {
+        return name;
+      }
+    }
 
-    // 4️⃣ impact_levelでソート
-    const priority = { High: 1, Medium: 2, Low: 3 };
+    // ========= 4. 固有名詞置換 =========
+    for (const entity of entities) {
+      const jpName = await getJapaneseName(entity);
+      const regex = new RegExp(entity, "g");
+      summary = summary.replace(regex, jpName);
+    }
 
-    analyses.sort(
-      (a, b) => priority[a.impact_level] - priority[b.impact_level]
-    );
-
+    // ========= 5. レスポンス =========
     return res.status(200).json({
-      generated_at: new Date().toISOString(),
-      articles: analyses,
+      title: article.fields.headline,
+      summary,
+      original_url: article.webUrl
     });
 
   } catch (error) {
-    console.error("Error in today.js:", error);
     return res.status(500).json({
-      error: error.message || "Unexpected server error",
+      error: error.message
     });
   }
 }
