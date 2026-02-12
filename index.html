@@ -1,205 +1,184 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Impact Brief</title>
 
-type NewsItem = {
-  title_ja: string;
-  one_sentence: string;
-  summary_3lines: string[];
-  what_happened: string[];
-  why_important: string[];
-  action_advice: string[];
-  impact_level: "High" | "Medium" | "Low";
-  original_url: string;
-};
-
-export default function Home() {
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const fetchNews = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const res = await fetch("https://ai-impact-brief.vercel.app/api/today");
-      const data = await res.json();
-
-      if (!data.news) throw new Error("Invalid response");
-
-      setNews(data.news);
-    } catch (err: any) {
-      setError("Failed to load news");
-    } finally {
-      setLoading(false);
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen;
+      background-color: #0f172a;
+      color: #ffffff;
+      padding: 24px;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
     }
-  };
 
-  useEffect(() => {
-    fetchNews();
-  }, []);
+    .header {
+      margin-bottom: 8px;
+    }
 
-  // ✅ 日本時間で英語日付生成
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Tokyo",
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const formattedDate = formatter.format(now);
+    .brand {
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0;
+    }
 
-  const editionNumber = Math.floor(
-    (now.getTime() - new Date("2026-01-01").getTime()) / (1000 * 60 * 60 * 24)
-  );
+    .subtitle {
+      opacity: 0.6;
+      margin: 4px 0 0 0;
+    }
 
-  return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.brand}>AI Impact Brief</Text>
-      <Text style={styles.subtitle}>Today's AI News</Text>
+    .date {
+      margin-top: 8px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      opacity: 0.55;
+      letter-spacing: 1px;
+    }
 
-      {/* 🔥 高級日付エリア */}
-      <View style={styles.metaContainer}>
-        <Text style={styles.dateText}>{formattedDate}</Text>
-        <Text style={styles.editionText}>Edition {editionNumber}</Text>
-      </View>
+    .card {
+      background-color: #1e293b;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
 
-      {loading && <ActivityIndicator size="large" color="#3B82F6" />}
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
 
-      {error !== "" && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={fetchNews}>
-            <Text style={styles.retry}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+    .high { background-color: #dc2626; }
+    .medium { background-color: #f59e0b; }
+    .low { background-color: #16a34a; }
 
-      {news.map((item, index) => (
-        <View key={index} style={styles.card}>
-          <View style={[styles.badge, badgeColor(item.impact_level)]}>
-            <Text style={styles.badgeText}>{item.impact_level}</Text>
-          </View>
+    .title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
 
-          <Text style={styles.title}>{item.title_ja}</Text>
-          <Text style={styles.summary}>{item.one_sentence}</Text>
+    .summary {
+      background-color: #334155;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
 
-          <Section title="何が起きた？" items={item.what_happened} />
-          <Section title="なぜ重要？" items={item.why_important} />
-          <Section title="行動アドバイス" items={item.action_advice} />
+    .section-title {
+      font-weight: 600;
+      margin-top: 12px;
+    }
 
-          <TouchableOpacity>
-            <Text style={styles.link}>元記事を読む</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-    </ScrollView>
-  );
-}
+    .bullet {
+      margin: 4px 0;
+      color: #cbd5e1;
+    }
 
-function Section({ title, items }: { title: string; items: string[] }) {
-  return (
-    <View style={{ marginTop: 10 }}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {items.map((line, i) => (
-        <Text key={i} style={styles.bullet}>• {line}</Text>
-      ))}
-    </View>
-  );
-}
+    .link {
+      color: #3b82f6;
+      margin-top: 12px;
+      display: inline-block;
+    }
 
-function badgeColor(level: string) {
-  switch (level) {
-    case "High":
-      return { backgroundColor: "#DC2626" };
-    case "Medium":
-      return { backgroundColor: "#F59E0B" };
-    case "Low":
-      return { backgroundColor: "#16A34A" };
-    default:
-      return {};
-  }
-}
+    .error {
+      color: #f87171;
+    }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0F172A",
-    padding: 16,
-  },
-  brand: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  subtitle: {
-    color: "#94A3B8",
-    marginBottom: 10,
-  },
-  metaContainer: {
-    marginBottom: 20,
-  },
-  dateText: {
-    color: "#94A3B8",
-    letterSpacing: 1,
-    fontSize: 13,
-  },
-  editionText: {
-    color: "#64748B",
-    fontSize: 12,
-  },
-  card: {
-    backgroundColor: "#1E293B",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 20,
-  },
-  badge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 12,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
-    marginBottom: 6,
-  },
-  summary: {
-    backgroundColor: "#334155",
-    padding: 10,
-    borderRadius: 10,
-    color: "#E2E8F0",
-  },
-  sectionTitle: {
-    marginTop: 8,
-    fontWeight: "600",
-    color: "#CBD5E1",
-  },
-  bullet: {
-    color: "#CBD5E1",
-    marginTop: 4,
-  },
-  link: {
-    marginTop: 10,
-    color: "#3B82F6",
-    fontWeight: "600",
-  },
-  errorBox: {
-    marginVertical: 20,
-  },
-  errorText: {
-    color: "#F87171",
-  },
-  retry: {
-    color: "#3B82F6",
-    marginTop: 5,
-  },
-});
+    .loading {
+      opacity: 0.7;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <h1 class="brand">AI Impact Brief</h1>
+    <p class="subtitle">Today's AI News</p>
+    <div id="date" class="date"></div>
+  </div>
+
+  <div id="news" class="loading">Loading...</div>
+
+  <script>
+    function formatDateTokyo() {
+      const now = new Date();
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Tokyo",
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }).format(now);
+    }
+
+    function calculateEdition() {
+      const start = new Date("2026-01-01T00:00:00+09:00");
+      const now = new Date();
+      const diff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+      return String(diff).padStart(3, "0");
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const dateEl = document.getElementById("date");
+      dateEl.textContent =
+        formatDateTokyo() + "  ·  Edition " + calculateEdition();
+
+      loadNews();
+    });
+
+    async function loadNews() {
+      const container = document.getElementById("news");
+
+      try {
+        const res = await fetch("/api/today");
+        const data = await res.json();
+
+        if (!data.items) throw new Error("Invalid response");
+
+        container.innerHTML = "";
+
+        data.items.forEach(item => {
+          const badgeClass =
+            item.impact_level === "High" ? "high" :
+            item.impact_level === "Medium" ? "medium" : "low";
+
+          container.innerHTML += `
+            <div class="card">
+              <div class="badge ${badgeClass}">${item.impact_level}</div>
+              <div class="title">${item.title_ja}</div>
+              <div class="summary">${item.one_sentence}</div>
+
+              <div class="section-title">何が起きた？</div>
+              ${item.what_happened.map(line => `<div class="bullet">• ${line}</div>`).join("")}
+
+              <div class="section-title">なぜ重要？</div>
+              ${item.why_important.map(line => `<div class="bullet">• ${line}</div>`).join("")}
+
+              <div class="section-title">行動アドバイス</div>
+              ${item.action_advice.map(line => `<div class="bullet">• ${line}</div>`).join("")}
+
+              <a href="${item.original_url}" target="_blank" class="link">
+                Read Original Article →
+              </a>
+            </div>
+          `;
+        });
+
+      } catch (err) {
+        container.innerHTML = "<div class='error'>Failed to load news</div>";
+      }
+    }
+  </script>
+
+</body>
+</html>
