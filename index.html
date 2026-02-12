@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Impact Brief</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px; background: #111; color: #fff; }
+    h1 { font-size: 24px; }
+    .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-top: 20px; }
+    .section { margin-top: 16px; }
+    a { color: #4da3ff; }
+  </style>
+</head>
+<body>
+  <h1>AI Impact Brief</h1>
+  <div id="content">Loading...</div>
+
+  <script>
+    fetch("/api/today")
+      .then(res => res.json())
+      .then(data => {
+        const article = data.brief;
+        document.getElementById("content").innerHTML = `
+          <div class="card">
+            <h2>${article.title_ja}</h2>
+            <p><strong>一言要約:</strong> ${article.one_sentence}</p>
+            
+            <div class="section">
+              <strong>何が起きた？</strong>
+              <ul>${article.what_happened.map(i => `<li>${i}</li>`).join("")}</ul>
+            </div>
+
+            <div class="section">
+              <strong>なぜ重要？</strong>
+              <ul>${article.why_important.map(i => `<li>${i}</li>`).join("")}</ul>
+            </div>
+
+            <div class="section">
+              <strong>行動アドバイス</strong>
+              <ul>${article.action_advice.map(i => `<li>${i}</li>`).join("")}</ul>
+            </div>
+
+            <div class="section">
+              <a href="${data.originalUrl}" target="_blank">元記事を読む</a>
+            </div>
+          </div>
+        `;
+      })
+      .catch(err => {
+        document.getElementById("content").innerText = "Error loading data.";
+      });
+  </script>
+</body>
+</html>
