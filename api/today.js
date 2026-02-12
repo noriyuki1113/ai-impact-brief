@@ -1,140 +1,129 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+  // ---- CORS（PWA/外部プレビューでも落ちにくい）----
+  const origin = req.headers.origin;
+  res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
+
   try {
     const guardianKey = process.env.GUARDIAN_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
 
-    // 🔎 環境変数チェック
-    if (!guardianKey) {
-      return res.status(500).json({ error: "Missing GUARDIAN_API_KEY" });
-    }
+    if (!guardianKey) return res.status(500).json({ error: "GUARDIAN_API_KEY is missing" });
+    if (!openaiKey) return res.status(500).json({ error: "OPENAI_API_KEY is missing" });
 
-    if (!openaiKey) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
-    }
+    // ---- 1) Guardian：最新3件 ----
+    const guardianUrl =
+      "https://content.guardianapis.com/search" +
+      `?section=technology&order-by=newest&page-size=3` +
+      `&show-fields=headline,trailText,bodyText` +
+      `&api-key=${encodeURIComponent(guardianKey)}`;
 
-    // ===============================
-    // 1️⃣ GuardianからAI関連記事を3件取得
-    // ===============================
-    const guardianRes = await fetch(
-      `https://content.guardianapis.com/search?q=artificial%20intelligence&section=technology&page-size=3&show-fields=headline,trailText,body,shortUrl&api-key=${guardianKey}`
-    );
-
+    const guardianRes = await fetch(guardianUrl);
     const guardianData = await guardianRes.json();
 
-    if (
-      !guardianData.response ||
-      !guardianData.response.results ||
-      guardianData.response.results.length === 0
-    ) {
-      return res.status(500).json({ error: "Guardian returned no results" });
+    const results = guardianData?.response?.results;
+    if (!Array.isArray(results) || results.length === 0) {
+      return res.status(502).json({ error: "Guardian returned no results", raw: guardianData });
     }
 
-    const articles = guardianData.response.results.slice(0, 3);
+    const articles = results.slice(0, 3).map((a) => ({
+      original_title: a.webTitle,
+      original_url: a.webUrl,
+      body: (a?.fields?.bodyText || a?.fields?.trailText || "").slice(0, 12000) // 念のため制限
+    }));
 
-    // ===============================
-    // 2️⃣ OpenAIへ送るプロンプト生成
-    // ===============================
+    // ---- 2) OpenAI：3件まとめて要約（JSON固定）----
     const prompt = `
-You are an elite financial and technology news analyst.
+You are a Japanese news editor.
+Summarize the following THREE articles in Japanese.
+Return JSON ONLY. No markdown. No code fences.
 
-Summarize the following 3 news articles in Japanese.
+Schema:
+{
+  "date_iso": "YYYY-MM-DD",
+  "items": [
+    {
+      "impact_level": "High|Medium|Low",
+      "title_ja": "string",
+      "one_sentence": "string",
+      "what_happened": ["string","string"],
+      "why_important": ["string","string"],
+      "action_advice": ["string","string"],
+      "original_title": "string",
+      "original_url": "string"
+    }
+  ]
+}
 
-Return ONLY valid JSON.
-Do not include explanations.
-Do not wrap in markdown.
-
-Format:
-[
-  {
-    "title_ja": "",
-    "one_sentence": "",
-    "summary_3lines": [],
-    "what_happened": [],
-    "why_important": [],
-    "action_advice": [],
-    "impact_level": "High | Medium | Low",
-    "original_url": ""
-  }
-]
+Rules:
+- items must be exactly 3, same order as given.
+- Keep each bullet array 2-4 items.
+- Be factual. Avoid speculation.
+- Natural Japanese titles (not literal translation).
 
 Articles:
-${articles
-  .map(
-    (a, i) => `
-Article ${i + 1}:
-Title: ${a.webTitle}
-Content: ${a.fields.body}
-URL: ${a.webUrl}
-`
-  )
-  .join("\n")}
-`;
+1) ${articles[0].original_title}
+${articles[0].original_url}
+${articles[0].body}
 
-    // ===============================
-    // 3️⃣ OpenAI API呼び出し
-    // ===============================
-    const openaiRes = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          temperature: 0.4,
-          messages: [
-            {
-              role: "system",
-              content: "You generate structured Japanese news brief JSON.",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-        }),
-      }
-    );
+2) ${articles[1].original_title}
+${articles[1].original_url}
+${articles[1].body}
+
+3) ${articles[2].original_title}
+${articles[2].original_url}
+${articles[2].body}
+`.trim();
+
+    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+      }),
+    });
 
     const openaiData = await openaiRes.json();
+    const text = openaiData?.choices?.[0]?.message?.content;
 
-    if (!openaiData.choices) {
-      return res.status(500).json({ error: "OpenAI response invalid" });
+    if (!text) {
+      return res.status(502).json({ error: "OpenAI missing content", raw: openaiData });
     }
 
-    const rawContent = openaiData.choices[0].message.content;
-
-    let summaries;
-
+    // ---- 3) JSONパース（フェンス除去）----
+    const cleaned = String(text).trim().replace(/^```json\s*|```$/g, "");
+    let payload;
     try {
-      summaries = JSON.parse(rawContent);
-    } catch (err) {
-      return res.status(500).json({
-        error: "Failed to parse OpenAI JSON",
-        raw: rawContent,
+      payload = JSON.parse(cleaned);
+    } catch {
+      return res.status(502).json({
+        error: "OpenAI returned non-JSON",
+        rawText: cleaned.slice(0, 1500),
       });
     }
 
-    // ===============================
-    // 4️⃣ Impact順にソート（High→Medium→Low）
-    // ===============================
-    const impactOrder = { High: 3, Medium: 2, Low: 1 };
+    if (!payload?.items || !Array.isArray(payload.items) || payload.items.length !== 3) {
+      return res.status(502).json({ error: "Schema invalid: items must be 3", raw: payload });
+    }
 
-    const sortedSummaries = summaries.sort((a, b) => {
-      return (
-        (impactOrder[b.impact_level] || 0) -
-        (impactOrder[a.impact_level] || 0)
-      );
-    });
+    // ---- 4) 表示順：High→Medium→Low に並び替え ----
+    const order = { High: 3, Medium: 2, Low: 1 };
+    payload.items.sort((a, b) => (order[b.impact_level] || 0) - (order[a.impact_level] || 0));
 
-    // ===============================
-    // 5️⃣ レスポンス返却
-    // ===============================
-    return res.status(200).json(sortedSummaries);
-  } catch (error) {
-    console.error("API ERROR:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    // ✅ フロントが期待する形で返す
+    return res.status(200).json(payload);
+
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || String(err) });
   }
-}
+};
