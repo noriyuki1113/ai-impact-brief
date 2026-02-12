@@ -27,7 +27,7 @@ export default async function handler(req, res) {
         input: `
         Summarize this article in Japanese.
         Structure:
-        - 何が起きた
+        - 何が起きたか
         - なぜ重要か
         - どんな仕事に影響するか
         - 取るべきアクション
@@ -50,3 +50,4 @@ export default async function handler(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
+
