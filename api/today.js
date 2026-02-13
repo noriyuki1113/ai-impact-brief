@@ -13,14 +13,17 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Max-Age", "86400");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
+  if (req.method !== "GET")
+    return res.status(405).json({ error: "Method Not Allowed" });
 
   try {
     const guardianKey = process.env.GUARDIAN_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
 
-    if (!guardianKey) return res.status(500).json({ error: "GUARDIAN_API_KEY is missing" });
-    if (!openaiKey) return res.status(500).json({ error: "OPENAI_API_KEY is missing" });
+    if (!guardianKey)
+      return res.status(500).json({ error: "GUARDIAN_API_KEY is missing" });
+    if (!openaiKey)
+      return res.status(500).json({ error: "OPENAI_API_KEY is missing" });
 
     // =========================
     // 0) Debug flag (optional)
@@ -52,7 +55,9 @@ module.exports = async function handler(req, res) {
     const results = guardianData?.response?.results;
 
     if (!Array.isArray(results) || results.length === 0) {
-      return res.status(502).json({ error: "Guardian returned no results", raw: guardianData });
+      return res
+        .status(502)
+        .json({ error: "Guardian returned no results", raw: guardianData });
     }
 
     const articles = results.slice(0, 3).map((a) => ({
@@ -60,82 +65,56 @@ module.exports = async function handler(req, res) {
       original_url: a.webUrl || "",
       body: String(a?.fields?.bodyText || a?.fields?.trailText || "")
         .replace(/\s+/g, " ")
-        .slice(0, 9000), // 長文対策
+        .slice(0, 9000),
     }));
 
     // =========================
-    // 2) Prompts (separated)
+    // 2) Prompts (Premium calm analytical JP)
     // =========================
     const systemPrompt = `
-You are a neutral, analytical AI news strategist creating a premium AI briefing in Japanese.
-
-Tone:
-- Calm, neutral, analytical
-- No sensationalism, no clickbait
-- Avoid dramatic/emotional words (e.g., shock, panic, crisis)
-- No moral judgment
-- No speculation without evidence
-
-Naming:
-- Use widely accepted Japanese names for well-known people and companies.
-- Do NOT mechanically transliterate into unnatural katakana.
-- If unsure, prefer the original English spelling rather than incorrect katakana.
-
-Output:
-Return strictly valid JSON only. No markdown. No extra text.
+あなたは冷静で知的な経済メディアの編集者です。
+感情的・扇動的な表現は禁止します。
+出力は必ず「有効なJSONのみ」です。説明文やMarkdownは禁止。
 `.trim();
 
     const userPrompt = `
-Select and analyze exactly 3 AI-related news items (based on the provided articles) with structural depth.
+以下の海外AIニュース記事（3本）を、日本語で上質かつ客観的に整理してください。
 
-CRITICAL RULES:
-1) Diversification:
-The 3 items must belong to clearly different sub-themes.
-Avoid selecting multiple stories about similar stock reactions or similar corporate announcements.
-Prefer distribution across categories such as:
-- Financial markets
-- Corporate strategy
-- Regulation or policy
-- Social impact
-- Technology innovation
-- Labor market
-- Geopolitics
-- Data economy
+【絶対ルール】
+・煽らない
+・断定しすぎない
+・主観的評価を書かない
+・過度に簡略化しない
+・専門性は保つが難解にしない
+・語尾は「〜とみられる」「〜が示唆される」など穏やかに
+・固有名詞は可能な限り一般的な日本語表記を用いる（不確かなカタカナ化は避け、英語のままでも可）
+・3本はサブテーマが被らないように分散させる（例：市場、企業戦略、規制、技術、社会など）
+・impact_level は厳密に分類する
+  - High: 市場・政策・地政学・大手企業を跨いだ構造的影響
+  - Medium: 業界または大手企業単位の影響
+  - Low: 限定的・局所的・話題性中心
 
-2) Impact classification:
-Assign exactly ONE item as High.
-Assign at least ONE item as Medium.
-Use Low only if impact is clearly limited/local/reputational.
-
-Definitions:
-High = Cross-market, systemic, geopolitical, or structural economic impact.
-Medium = Industry-level or major company-level strategic impact.
-Low = Limited, localized, reputational, or commentary-level impact.
-
-3) Analytical depth:
-The one_sentence must be decisive and analytical (not merely descriptive).
-
-Return JSON in this exact schema:
+【出力形式（厳守）】
 {
   "date_iso": "YYYY-MM-DD",
   "items": [
     {
       "impact_level": "High|Medium|Low",
-      "title_ja": "string",
-      "one_sentence": "string",
-      "what_happened": ["string","string","string"],
-      "why_important": ["string","string","string"],
-      "action_advice": ["string","string","string"],
+      "title_ja": "簡潔で品のある日本語タイトル",
+      "one_sentence": "記事全体を1文で要約（知的トーン）",
+      "fact_summary": ["事実整理（客観的事実のみ）", "..."],
+      "implications": ["この出来事が意味するもの", "..."],
+      "outlook": ["今後の焦点", "..."],
       "original_title": "string",
       "original_url": "string"
     }
   ]
 }
 
-Rules:
-- items must be exactly 3.
-- Keep bullet arrays 2-4 items each.
-- Use analytical framing in title_ja (no hype).
+【追加ルール】
+・items は必ず3件
+・各配列は2〜4項目
+・Highは最大1件（高インパクトが明確な場合のみ）
 
 Articles JSON:
 ${JSON.stringify(articles)}
@@ -213,8 +192,6 @@ ${JSON.stringify(articles)}
       // Companies (examples)
       { from: /\bRelx\b/g, to: "RELX" },
       { from: /レルクス/g, to: "RELX" },
-
-      // Add more as you discover candidates
     ];
 
     function applyDictionaryToString(s) {
@@ -240,24 +217,6 @@ ${JSON.stringify(articles)}
     // =========================
     // 6) A: Unknown-term auto collection (dictionary candidates)
     // =========================
-
-    // For filtering: build a set of dictionary "from" tokens (best-effort)
-    // We treat plain strings found in DICTIONARY regex sources as "known".
-    const knownHints = new Set(
-      DICTIONARY.map((r) => String(r.from))
-        .flatMap((s) => {
-          // Extract visible tokens from regex string like "/.../g" form
-          // Best-effort: take inside slashes when present
-          const m = s.match(/^\/(.+)\/[gimsuy]*$/);
-          const body = m ? m[1] : s;
-          // Split by obvious regex operators to get rough tokens
-          return body
-            .split(/[\|$begin:math:text$$end:math:text$$begin:math:display$$end:math:display$\?\+\*\{\}\\.^$]/g)
-            .map((t) => t.trim())
-            .filter((t) => t.length >= 2);
-        })
-    );
-
     function collectAllText(obj) {
       let text = "";
       (function walk(v) {
@@ -273,36 +232,19 @@ ${JSON.stringify(articles)}
 
       // Katakana sequences (3+)
       const katakanaRegex = /[ァ-ヶー]{3,}/g;
-      for (const w of text.match(katakanaRegex) || []) {
-        if (!isKnownToken(w)) candidates.add(w);
-      }
+      for (const w of text.match(katakanaRegex) || []) candidates.add(w);
 
-      // English proper nouns: "Elon Musk", "OpenAI", "New York Times" etc.
-      // (two+ words or camel-case single like OpenAI)
+      // English proper nouns
       const englishMulti = /\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)+\b/g;
-      for (const w of text.match(englishMulti) || []) {
-        if (!isKnownToken(w)) candidates.add(w);
-      }
+      for (const w of text.match(englishMulti) || []) candidates.add(w);
 
-      const englishSingle = /\b[A-Z][A-Za-z0-9]{2,}\b/g; // OpenAI, RELX, Anthropic
-      for (const w of text.match(englishSingle) || []) {
-        if (!isKnownToken(w)) candidates.add(w);
-      }
+      const englishSingle = /\b[A-Z][A-Za-z0-9]{2,}\b/g;
+      for (const w of text.match(englishSingle) || []) candidates.add(w);
 
-      // Remove obvious noise
-      const stop = new Set(["High", "Medium", "Low", "JSON", "AI"]);
-      for (const s of stop) candidates.delete(s);
+      // Remove noise
+      ["High", "Medium", "Low", "JSON", "AI"].forEach((s) => candidates.delete(s));
 
       return Array.from(candidates).slice(0, 50);
-    }
-
-    function isKnownToken(token) {
-      if (!token || token.length < 2) return true;
-      // Already corrected target names are okay; we care about unknowns
-      for (const hint of knownHints) {
-        if (hint && token.includes(hint)) return true;
-      }
-      return false;
     }
 
     const allText = collectAllText(payload);
@@ -326,7 +268,10 @@ ${JSON.stringify(articles)}
         ...payload,
         debug: {
           dictionary_candidates,
-          article_sources: articles.map((a) => ({ original_title: a.original_title, original_url: a.original_url })),
+          article_sources: articles.map((a) => ({
+            original_title: a.original_title,
+            original_url: a.original_url,
+          })),
         },
       });
     }
