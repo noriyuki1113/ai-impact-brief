@@ -1,8 +1,23 @@
 // /api/today.js  (Vercel Serverless Function)
-// ✅ Guardian + ✅ GDELT(短い単語排除で "keyword too short" 回避 / 非JSON耐性 / 5秒ルール)
-// ✅ 最低1本は非Guardian強制（取れた場合）
-// ✅ Debug可視化 + ✅ Cache保護 + ✅ OpenAI整形(Score公開)
-// Node 18+ / Vercel
+// A-GDELT-5.0  ✅完全統合版（Guardian + GDELT + OpenAI）
+// - GDELT「短い単語」回避クエリ
+// - GDELT 5秒ルール遵守
+// - GDELT allowlist（低品質媒体除外）
+// - URL正規化＆重複除外
+// - published_at ISO8601統一（GDELT/Guardian混在OK）
+// - 3本のテーマ分散（簡易）
+// - 2ソース以上を可能なら確保（最低1本は非Guardian優先）
+// - High最大1件を強制
+// - debug=1で内部状態表示
+//
+// 必要環境変数:
+//   GUARDIAN_API_KEY
+//   OPENAI_API_KEY
+//
+// 使い方:
+//   https://<your-domain>/api/today
+//   https://<your-domain>/api/today?debug=1
+//   https://<your-domain>/api/today?v=1 (cache bust)
 
 module.exports = async function handler(req, res) {
   // ---- Robust CORS ----
@@ -23,7 +38,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method Not Allowed" });
 
   // =========================
-  // 0) Debug flag + Cache
+  // 0) Debug + Cache Control
   // =========================
   const urlObj = new URL(req.url, "https://example.com");
   const debug = urlObj.searchParams.get("debug") === "1";
@@ -79,11 +94,56 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    function hostOf(u) {
+      try {
+        return new URL(String(u)).hostname.replace(/^www\./, "").toLowerCase();
+      } catch {
+        return "";
+      }
+    }
+
+    // ✅ allowlist（必要に応じて増やしてOK）
+    const GDELT_ALLOWLIST = new Set([
+      "reuters.com",
+      "bloomberg.com",
+      "ft.com",
+      "wsj.com",
+      "theverge.com",
+      "techcrunch.com",
+      "venturebeat.com",
+      "arstechnica.com",
+      "axios.com",
+      "semafor.com",
+      "economist.com",
+      "nature.com",
+      "science.org",
+      "nytimes.com",
+      "washingtonpost.com",
+      "bbc.co.uk",
+      "bbc.com",
+      // 日本系を混ぜたいなら（任意）
+      "nikkei.com",
+      "itmedia.co.jp",
+      "impress.co.jp",
+      "ascii.jp",
+    ]);
+
+    function isAllowedDomain(u) {
+      const h = hostOf(u);
+      if (!h) return false;
+      for (const d of GDELT_ALLOWLIST) {
+        if (h === d || h.endsWith("." + d)) return true;
+      }
+      return false;
+    }
+
     function dedupeByUrl(items) {
       const seen = new Set();
       const out = [];
       for (const x of items) {
-        const u = normalizeUrl(x.original_url || x.originalUrl || x.url || "");
+        const u = normalizeUrl(
+          x.original_url || x.originalUrl || x.url || x.link || ""
+        );
         if (!u) continue;
         if (seen.has(u)) continue;
         seen.add(u);
@@ -92,20 +152,32 @@ module.exports = async function handler(req, res) {
       return out;
     }
 
+    // GDELTの 20260213T031500Z を ISOへ
+    function toIsoMaybe(s) {
+      const v = String(s || "").trim();
+      const m = v.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+      if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
+      if (v.includes("-") && v.includes("T")) return v; // already ISO-ish
+      return v || "";
+    }
+
     function themeBucket(title = "", body = "") {
       const t = (title + " " + body).toLowerCase();
-      if (t.match(/policy|regulation|act|governance|law|ban|commission|ministry/))
+      if (t.match(/policy|regulation|governance|law|ban|commission|ministry/))
         return "policy";
-      if (t.match(/chip|gpu|semiconductor|export|supply chain|compute|data center|blackwell/))
+      if (
+        t.match(
+          /chip|semiconductor|export|supply chain|compute|data center|accelerator/
+        )
+      )
         return "compute";
-      if (t.match(/funding|investment|ipo|acquisition|m&a|valuation|round|capital|venture/))
+      if (t.match(/funding|investment|ipo|acquisition|m&a|valuation|round|venture/))
         return "capital";
-      if (t.match(/openai|google|microsoft|amazon|meta|anthropic|deepmind|nvidia/))
-        return "bigtech";
       if (t.match(/copyright|licensing|lawsuit|court|publisher/))
         return "copyright";
-      if (t.match(/security|safety|bio|misuse|fraud|deepfake/))
-        return "risk";
+      if (t.match(/security|safety|bio|misuse|fraud|deepfake/)) return "risk";
+      if (t.match(/openai|google|microsoft|amazon|meta|anthropic|deepmind|nvidia/))
+        return "bigtech";
       return "general";
     }
 
@@ -129,7 +201,7 @@ module.exports = async function handler(req, res) {
       return picked.slice(0, limit);
     }
 
-    // ✅ Force at least 1 non-Guardian item if available
+    // ✅ 可能なら2ソース以上（最低1本は非Guardian優先）
     function pick3WithSourceGuarantee(allCandidates) {
       const guardian = allCandidates.filter((x) => x.source === "The Guardian");
       const nonGuardian = allCandidates.filter((x) => x.source !== "The Guardian");
@@ -147,23 +219,12 @@ module.exports = async function handler(req, res) {
       return out;
     }
 
-    function japanBoostScore(text = "") {
-      const s = String(text).toLowerCase();
-      let score = 0;
-      if (/japan|japanese|tokyo|osaka|yen|boj|meti|digital agency|financial services agency/.test(s))
-        score += 2;
-      if (/sony|softbank|ntt|rakuten|toyota|hitachi|fujitsu|nec|kddi|panasonic/.test(s))
-        score += 2;
-      if (/semiconductor|chip|supply chain|tsmc|asml|nvidia/.test(s)) score += 1;
-      return score;
-    }
-
     // =========================
     // 1) Guardian
     // =========================
     const guardianUrl =
       "https://content.guardianapis.com/search" +
-      `?section=technology&order-by=newest&page-size=8` +
+      `?section=technology&order-by=newest&page-size=10` +
       `&show-fields=headline,trailText,bodyText` +
       `&api-key=${encodeURIComponent(guardianKey)}`;
 
@@ -185,10 +246,10 @@ module.exports = async function handler(req, res) {
       return res.status(502).json({ error: "Guardian returned no results" });
     }
 
-    const guardianArticles = results.slice(0, 8).map((a) => ({
+    const guardianArticles = results.slice(0, 10).map((a) => ({
       original_title: a.webTitle || "",
       original_url: normalizeUrl(a.webUrl || ""),
-      published_at: a.webPublicationDate || "",
+      published_at: toIsoMaybe(a.webPublicationDate || ""),
       source: "The Guardian",
       body: String(a?.fields?.trailText || a?.fields?.bodyText || "")
         .replace(/\s+/g, " ")
@@ -197,8 +258,8 @@ module.exports = async function handler(req, res) {
 
     // =========================
     // 2) GDELT (Doc 2.1)
-    // ✅ "keyword too short" 対策：2〜3文字の単語をクエリから排除
-    //    - AI / EU / GPU / Act を使わない
+    // ✅ "keyword too short"回避：短い単語を使わない
+    // ✅ 5 sec rule
     // =========================
     const GDELT_QUERIES = [
       // policy
@@ -209,7 +270,7 @@ module.exports = async function handler(req, res) {
       "artificial intelligence investment funding valuation venture capital startup",
     ];
 
-    async function fetchGdeltOnce({ query, maxrecords = 30, timespan = "1d" }) {
+    async function fetchGdeltOnce({ query, maxrecords = 40, timespan = "1d" }) {
       const base = "https://api.gdeltproject.org/api/v2/doc/doc";
       const u = new URL(base);
       u.searchParams.set("query", query);
@@ -233,24 +294,29 @@ module.exports = async function handler(req, res) {
       }
 
       const arts = Array.isArray(data?.articles) ? data.articles : [];
+      const mapped = arts
+        .map((a) => ({
+          original_title: String(a?.title || "").trim(),
+          original_url: normalizeUrl(a?.url || ""),
+          published_at: toIsoMaybe(a?.seendate || ""),
+          source: "GDELT",
+          language: a?.language || "",
+          body: `${a?.title || ""} ${a?.description || ""}`
+            .replace(/\s+/g, " ")
+            .slice(0, 900),
+        }))
+        .filter((x) => x.original_url && x.original_title);
 
-      return arts.map((a) => ({
-        original_title: a?.title || "",
-        original_url: normalizeUrl(a?.url || ""),
-        published_at: a?.seendate || "",
-        source: a?.sourceCountry || a?.source || "GDELT",
-        language: a?.language || "",
-        body: `${a?.title || ""} ${a?.description || ""}`
-          .replace(/\s+/g, " ")
-          .slice(0, 700),
-      }));
+      // ✅ allowlistで品質を安定化
+      return mapped.filter((x) => isAllowedDomain(x.original_url));
     }
 
-    async function fetchGdeltBatchSafe(queries, { maxrecords = 30, timespan = "1d" } = {}) {
+    async function fetchGdeltBatchSafe(queries, { maxrecords = 40, timespan = "1d" } = {}) {
       const out = [];
       for (let i = 0; i < queries.length; i++) {
         const q = queries[i];
 
+        // 2回だけリトライ（5秒ルール順守）
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
             const items = await fetchGdeltOnce({ query: q, maxrecords, timespan });
@@ -262,7 +328,7 @@ module.exports = async function handler(req, res) {
           }
         }
 
-        if (i < queries.length - 1) await sleep(5000); // ✅ 5 sec rule
+        if (i < queries.length - 1) await sleep(5000);
       }
       return out;
     }
@@ -270,7 +336,10 @@ module.exports = async function handler(req, res) {
     let gdeltItems = [];
     let gdeltError = null;
     try {
-      gdeltItems = await fetchGdeltBatchSafe(GDELT_QUERIES, { maxrecords: 30, timespan: "1d" });
+      gdeltItems = await fetchGdeltBatchSafe(GDELT_QUERIES, {
+        maxrecords: 40,
+        timespan: "1d",
+      });
     } catch (e) {
       gdeltItems = [];
       gdeltError = e?.message || String(e);
@@ -278,26 +347,12 @@ module.exports = async function handler(req, res) {
     }
 
     // =========================
-    // 3) Merge -> dedupe -> rank -> pick final3
+    // 3) Merge -> dedupe -> pick final3
     // =========================
     const merged = dedupeByUrl([...guardianArticles, ...gdeltItems]);
-
-    merged.sort((a, b) => {
-      const A = (a.original_title || "") + " " + (a.body || "");
-      const B = (b.original_title || "") + " " + (b.body || "");
-      const ja = japanBoostScore(A);
-      const jb = japanBoostScore(B);
-
-      const qa = a.source === "The Guardian" ? 1 : 0;
-      const qb = b.source === "The Guardian" ? 1 : 0;
-
-      if (jb !== ja) return jb - ja;
-      if (qb !== qa) return qb - qa;
-      return 0;
-    });
-
     const final3 = pick3WithSourceGuarantee(merged);
 
+    // フォールバック
     if (final3.length < 3) {
       const fb = pickDiversified(dedupeByUrl(guardianArticles), 3);
       final3.splice(0, final3.length, ...fb);
@@ -457,6 +512,7 @@ ${JSON.stringify(final3)}
     };
     const levelFromScore = (score) => (score >= 90 ? "High" : score >= 70 ? "Medium" : "Low");
 
+    // 元記事マップ（source/published補完用）
     const srcMap = new Map(final3.map((a) => [normalizeUrl(a.original_url), a]));
 
     payload.items = payload.items.map((it) => {
@@ -495,8 +551,9 @@ ${JSON.stringify(final3)}
 
       out.tags = ensureTags(out.tags);
 
+      // 補完
       out.source = out.source || src?.source || "";
-      out.published_at = out.published_at || src?.published_at || "";
+      out.published_at = toIsoMaybe(out.published_at || src?.published_at || "");
 
       for (const f of ["fact_summary", "implications", "outlook"]) {
         if (!Array.isArray(out[f])) out[f] = [];
@@ -513,10 +570,22 @@ ${JSON.stringify(final3)}
       return out;
     });
 
+    // importance順
     payload.items.sort((a, b) => (Number(b.importance_score) || 0) - (Number(a.importance_score) || 0));
 
+    // ✅ High最大1件を強制
+    let highCount = 0;
+    payload.items = payload.items.map((it) => {
+      const out = { ...it };
+      if (out.impact_level === "High") {
+        highCount++;
+        if (highCount > 1) out.impact_level = "Medium";
+      }
+      return out;
+    });
+
     payload.generated_at = new Date().toISOString();
-    payload.version = "A-GDELT-4.0";
+    payload.version = "A-GDELT-5.0";
     payload.sources = Array.from(new Set(payload.items.map((x) => x.source).filter(Boolean)));
 
     if (debug) {
@@ -531,8 +600,10 @@ ${JSON.stringify(final3)}
             original_title: a.original_title,
             original_url: a.original_url,
             published_at: a.published_at,
+            host: hostOf(a.original_url),
           })),
           queries: GDELT_QUERIES,
+          allowlist_size: GDELT_ALLOWLIST.size,
         },
       });
     }
