@@ -1,7 +1,8 @@
 // /api/today.js  (Vercel Serverless Function)
-// ✅ Guardian + ✅ GDELT(“phrase too short”回避クエリ / 非JSON耐性 / 5秒ルール) + ✅ 最低1本は非Guardian強制
-// ✅ Debug可視化 + ✅ キャッシュ保護 + ✅ OpenAI整形(Score公開)
-// Node 18+ / Vercel そのまま貼り替えOK
+// ✅ Guardian + ✅ GDELT(短い単語排除で "keyword too short" 回避 / 非JSON耐性 / 5秒ルール)
+// ✅ 最低1本は非Guardian強制（取れた場合）
+// ✅ Debug可視化 + ✅ Cache保護 + ✅ OpenAI整形(Score公開)
+// Node 18+ / Vercel
 
 module.exports = async function handler(req, res) {
   // ---- Robust CORS ----
@@ -22,13 +23,12 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method Not Allowed" });
 
   // =========================
-  // 0) Debug flag
+  // 0) Debug flag + Cache
   // =========================
   const urlObj = new URL(req.url, "https://example.com");
   const debug = urlObj.searchParams.get("debug") === "1";
   const cacheBust = urlObj.searchParams.get("v") || "";
 
-  // ✅ Cache (protect GDELT)
   if (debug || cacheBust) {
     res.setHeader("Cache-Control", "no-store");
   } else {
@@ -94,9 +94,9 @@ module.exports = async function handler(req, res) {
 
     function themeBucket(title = "", body = "") {
       const t = (title + " " + body).toLowerCase();
-      if (t.match(/policy|regulation|act|governance|law|ban|ai act|commission|ministry/))
+      if (t.match(/policy|regulation|act|governance|law|ban|commission|ministry/))
         return "policy";
-      if (t.match(/chip|gpu|semiconductor|export|supply chain|compute|data center|h100|blackwell/))
+      if (t.match(/chip|gpu|semiconductor|export|supply chain|compute|data center|blackwell/))
         return "compute";
       if (t.match(/funding|investment|ipo|acquisition|m&a|valuation|round|capital|venture/))
         return "capital";
@@ -147,19 +147,19 @@ module.exports = async function handler(req, res) {
       return out;
     }
 
-    // Small Japan relevance boost for ranking
     function japanBoostScore(text = "") {
       const s = String(text).toLowerCase();
       let score = 0;
-      if (/japan|japanese|tokyo|osaka|yen|boj|meti|digital agency|fsa/.test(s)) score += 2;
+      if (/japan|japanese|tokyo|osaka|yen|boj|meti|digital agency|financial services agency/.test(s))
+        score += 2;
       if (/sony|softbank|ntt|rakuten|toyota|hitachi|fujitsu|nec|kddi|panasonic/.test(s))
         score += 2;
-      if (/semiconductor|chip|gpu|export|supply chain|tsmc|asml|nvidia/.test(s)) score += 1;
-      return score; // 0-5
+      if (/semiconductor|chip|supply chain|tsmc|asml|nvidia/.test(s)) score += 1;
+      return score;
     }
 
     // =========================
-    // 1) Guardian (quality baseline)
+    // 1) Guardian
     // =========================
     const guardianUrl =
       "https://content.guardianapis.com/search" +
@@ -196,13 +196,17 @@ module.exports = async function handler(req, res) {
     }));
 
     // =========================
-    // 2) GDELT (worldwide sources)
-    //    Fix: "phrase too short" => use simple keyword strings
+    // 2) GDELT (Doc 2.1)
+    // ✅ "keyword too short" 対策：2〜3文字の単語をクエリから排除
+    //    - AI / EU / GPU / Act を使わない
     // =========================
     const GDELT_QUERIES = [
-      "artificial intelligence regulation european union AI Act",
-      "artificial intelligence semiconductor chip GPU export controls",
-      "artificial intelligence investment funding valuation venture capital",
+      // policy
+      "artificial intelligence regulation european commission governance framework",
+      // compute/supply chain
+      "artificial intelligence semiconductor processor accelerator export restrictions supply chain",
+      // funding/capital
+      "artificial intelligence investment funding valuation venture capital startup",
     ];
 
     async function fetchGdeltOnce({ query, maxrecords = 30, timespan = "1d" }) {
@@ -215,7 +219,6 @@ module.exports = async function handler(req, res) {
       u.searchParams.set("timespan", timespan);
 
       const r = await fetchWithTimeout(u.toString(), {}, 15000);
-
       const text = await r.text().catch(() => "");
 
       if (!r.ok) {
@@ -237,7 +240,9 @@ module.exports = async function handler(req, res) {
         published_at: a?.seendate || "",
         source: a?.sourceCountry || a?.source || "GDELT",
         language: a?.language || "",
-        body: `${a?.title || ""} ${a?.description || ""}`.replace(/\s+/g, " ").slice(0, 700),
+        body: `${a?.title || ""} ${a?.description || ""}`
+          .replace(/\s+/g, " ")
+          .slice(0, 700),
       }));
     }
 
@@ -252,7 +257,7 @@ module.exports = async function handler(req, res) {
             out.push(...items);
             break;
           } catch (e) {
-            await sleep(5000); // retry wait
+            await sleep(5000);
             if (attempt === 1) throw e;
           }
         }
@@ -273,14 +278,13 @@ module.exports = async function handler(req, res) {
     }
 
     // =========================
-    // 3) Merge -> dedupe -> rank -> pick final 3
+    // 3) Merge -> dedupe -> rank -> pick final3
     // =========================
     const merged = dedupeByUrl([...guardianArticles, ...gdeltItems]);
 
     merged.sort((a, b) => {
       const A = (a.original_title || "") + " " + (a.body || "");
       const B = (b.original_title || "") + " " + (b.body || "");
-
       const ja = japanBoostScore(A);
       const jb = japanBoostScore(B);
 
@@ -294,14 +298,13 @@ module.exports = async function handler(req, res) {
 
     const final3 = pick3WithSourceGuarantee(merged);
 
-    // safety fallback
     if (final3.length < 3) {
       const fb = pickDiversified(dedupeByUrl(guardianArticles), 3);
       final3.splice(0, final3.length, ...fb);
     }
 
     // =========================
-    // 4) OpenAI prompt (JP structured + score)
+    // 4) OpenAI prompt
     // =========================
     const systemPrompt = `
 あなたは冷静で知的な戦略アナリストです。
@@ -328,7 +331,7 @@ module.exports = async function handler(req, res) {
 注意：90以上は“業界転換点級”のみ。インフレ禁止。
 
 【タグ（tags）ルール】
-各記事3〜6個。英語の短いタグで統一（例：Regulation, Chips, Funding, Japan, EU, US）。
+各記事3〜6個。英語の短いタグで統一（例：Regulation, Chips, Funding, Japan, Europe, Security）。
 
 【出力形式（JSONのみ）】
 {
@@ -458,44 +461,43 @@ ${JSON.stringify(final3)}
 
     payload.items = payload.items.map((it) => {
       const out = { ...it };
-
-      // normalize url
       out.original_url = normalizeUrl(out.original_url || "");
       const src = srcMap.get(out.original_url);
 
-      // fix typos like "why_it.matters"
+      // typo rescue
       if (!out.why_it_matters && out["why_it.matters"]) {
         out.why_it_matters = out["why_it.matters"];
         delete out["why_it.matters"];
       }
 
-      // breakdown clamp
+      // score breakdown
       const bd = out.score_breakdown || {};
       const market = clamp(toInt(bd.market_impact) ?? 0, 0, 40);
       const biz = clamp(toInt(bd.business_impact) ?? 0, 0, 30);
       const jp = clamp(toInt(bd.japan_relevance) ?? 0, 0, 20);
       const conf = clamp(toInt(bd.confidence) ?? 0, 0, 10);
+
       out.score_breakdown = {
         market_impact: market,
         business_impact: biz,
         japan_relevance: jp,
         confidence: conf,
       };
-      out.importance_score = clamp(toInt(out.importance_score) ?? market + biz + jp + conf, 0, 100);
+      out.importance_score = clamp(
+        toInt(out.importance_score) ?? market + biz + jp + conf,
+        0,
+        100
+      );
 
-      // impact_level align
       out.impact_level = ["High", "Medium", "Low"].includes(out.impact_level)
         ? out.impact_level
         : levelFromScore(out.importance_score);
 
-      // tags
       out.tags = ensureTags(out.tags);
 
-      // source/published fallback from selected articles
       out.source = out.source || src?.source || "";
       out.published_at = out.published_at || src?.published_at || "";
 
-      // arrays safety
       for (const f of ["fact_summary", "implications", "outlook"]) {
         if (!Array.isArray(out[f])) out[f] = [];
         out[f] = out[f].map((x) => String(x || "").trim()).filter(Boolean).slice(0, 4);
@@ -504,7 +506,6 @@ ${JSON.stringify(final3)}
         }
       }
 
-      // trim strings
       for (const k of ["title_ja", "one_sentence", "why_it_matters", "japan_impact", "original_title"]) {
         if (typeof out[k] === "string") out[k] = out[k].trim();
       }
@@ -512,19 +513,12 @@ ${JSON.stringify(final3)}
       return out;
     });
 
-    // sort by score desc
     payload.items.sort((a, b) => (Number(b.importance_score) || 0) - (Number(a.importance_score) || 0));
 
-    // =========================
-    // 8) Metadata
-    // =========================
     payload.generated_at = new Date().toISOString();
-    payload.version = "A-GDELT-3.0";
+    payload.version = "A-GDELT-4.0";
     payload.sources = Array.from(new Set(payload.items.map((x) => x.source).filter(Boolean)));
 
-    // =========================
-    // 9) Debug payload
-    // =========================
     if (debug) {
       return res.status(200).json({
         ...payload,
