@@ -9,8 +9,8 @@
   <title>AI Impact Brief — 構造で読む、AI戦略ニュース</title>
 
   <!-- SEO -->
-  <meta name="description" content="投資家・経営層向けの冷静分析型AIニュースブリーフ。毎日3本、厳選されたAI関連ニュースを構造化して配信。感情ではなく、構造で読む。" />
-  <meta name="keywords" content="AI,人工知能,ニュース,投資,戦略,分析,ビジネス,テクノロジー,OpenAI,Google,Microsoft" />
+  <meta name="description" content="世界のAI戦略を、日本市場の視点で評価。Importance Score（0–100）を公開し、Why it matters / Japan Impactで意思決定に変換するAIニュースブリーフ。" />
+  <meta name="keywords" content="AI,人工知能,ニュース,投資,戦略,分析,ビジネス,テクノロジー,OpenAI,Google,Microsoft,Anthropic,DeepMind,API,規制" />
   <meta name="author" content="AI Impact Brief" />
   <link rel="canonical" href="https://ai-impact-brief.vercel.app/" />
 
@@ -23,8 +23,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://ai-impact-brief.vercel.app/" />
   <meta property="og:title" content="AI Impact Brief — 構造で読む、AI戦略ニュース" />
-  <meta property="og:description" content="投資家・経営層向けの冷静分析型AIニュースブリーフ。毎日3本、感情ではなく構造で読む。" />
-  <!-- og-image.png が無い場合はこの行を削除してください -->
+  <meta property="og:description" content="世界のAI戦略を、日本市場の視点で評価。Importance Score（0–100）を公開。" />
   <meta property="og:image" content="https://ai-impact-brief.vercel.app/og-image.png" />
   <meta property="og:site_name" content="AI Impact Brief" />
   <meta property="og:locale" content="ja_JP" />
@@ -33,7 +32,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:url" content="https://ai-impact-brief.vercel.app/" />
   <meta name="twitter:title" content="AI Impact Brief — 構造で読む、AI戦略ニュース" />
-  <meta name="twitter:description" content="投資家・経営層向けの冷静分析型AIニュースブリーフ。毎日3本、感情ではなく構造で読む。" />
+  <meta name="twitter:description" content="世界のAI戦略を、日本市場の視点で評価。Importance Score（0–100）を公開。" />
   <meta name="twitter:image" content="https://ai-impact-brief.vercel.app/og-image.png" />
 
   <!-- Structured Data -->
@@ -42,7 +41,7 @@
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "AI Impact Brief",
-    "description": "構造で読む、AI戦略ニュース。投資家・経営層向けの冷静分析型AIニュースブリーフ。",
+    "description": "世界のAI戦略を、日本市場の視点で評価。Importance Score（0–100）を公開し、Why it matters / Japan Impactで意思決定に変換するAIニュースブリーフ。",
     "url": "https://ai-impact-brief.vercel.app/",
     "inLanguage": "ja",
     "publisher": {
@@ -141,7 +140,6 @@
       margin-bottom: var(--spacing-xs);
     }
 
-    /* ✅ ロゴを少し大きく＋影で“メディア感” */
     .logo {
       width: 40px;
       height: 40px;
@@ -197,12 +195,14 @@
       gap: var(--spacing-sm);
       margin-bottom: var(--spacing-lg);
       padding: var(--spacing-sm) 0;
+      flex-wrap: wrap;
     }
 
     .filter-group {
       display: flex;
       gap: var(--spacing-xs);
       flex: 1;
+      flex-wrap: wrap;
     }
 
     .filter-btn {
@@ -220,11 +220,7 @@
       transition: all 0.15s ease;
     }
 
-    .filter-btn:hover {
-      background: var(--card-hover);
-      border-color: var(--border-default);
-    }
-
+    .filter-btn:hover { background: var(--card-hover); }
     .filter-btn.active {
       background: var(--text-primary);
       color: var(--bg-primary);
@@ -246,7 +242,6 @@
       gap: 6px;
       transition: all 0.15s ease;
     }
-
     .action-btn:hover { background: var(--card-hover); }
     .action-btn:active { transform: translateY(1px); }
 
@@ -326,9 +321,63 @@
       align-items: center;
       justify-content: space-between;
       margin-bottom: var(--spacing-md);
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
-    /* ✅ バッジ視認性：文字を太く、背景の濃度を少し上げ、表示は HIGH/MEDIUM/LOW */
+    /* ===== Score ===== */
+    .score-wrap{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap: wrap;
+    }
+
+    .score-badge{
+      display:inline-flex;
+      align-items:baseline;
+      gap:6px;
+      padding:6px 10px;
+      border-radius: var(--radius-sm);
+      font-size: var(--font-size-sm);
+      font-weight: 850;
+      letter-spacing: 0.02em;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.06);
+      color: var(--text-primary);
+      user-select: none;
+    }
+
+    .score-badge .num{
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .score-badge .label{
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .score-badge.high{
+      background: rgba(248, 81, 73, 0.18);
+      border-color: rgba(248, 81, 73, 0.35);
+      color: #ffb4ae;
+    }
+    .score-badge.medium{
+      background: rgba(210, 153, 34, 0.18);
+      border-color: rgba(210, 153, 34, 0.35);
+      color: #ffd48a;
+    }
+    .score-badge.low{
+      background: rgba(63, 185, 80, 0.18);
+      border-color: rgba(63, 185, 80, 0.35);
+      color: #b7f7c3;
+    }
+
+    /* legacy badge (残す) */
     .priority-badge {
       display: inline-flex;
       align-items: center;
@@ -368,7 +417,58 @@
       line-height: 1.4;
       letter-spacing: -0.01em;
       color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .meta-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top: 6px;
       margin-bottom: var(--spacing-sm);
+      font-size: var(--font-size-xs);
+      color: var(--text-muted);
+    }
+    .meta-row a{
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+    .meta-row a:hover{ color: var(--text-primary); }
+
+    .score-why{
+      font-size: var(--font-size-sm);
+      color: rgba(230,237,243,0.88);
+      margin-top: var(--spacing-sm);
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius-sm);
+    }
+    .score-why b{ color: var(--text-primary); }
+
+    .jp-impact{
+      margin-top: var(--spacing-sm);
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(248, 81, 73, 0.22);
+      background: rgba(248, 81, 73, 0.08);
+      color: rgba(230,237,243,0.9);
+    }
+    .jp-impact b{ color:#ffb4ae; }
+
+    .tag-row{
+      margin-top: 10px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+    }
+    .tag{
+      font-size: var(--font-size-xs);
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text-secondary);
     }
 
     .card-summary {
@@ -379,12 +479,12 @@
       background: rgba(255, 255, 255, 0.04);
       border-left: 2px solid var(--border-default);
       border-radius: var(--radius-sm);
+      margin-top: var(--spacing-md);
       margin-bottom: var(--spacing-md);
     }
 
     .card-section { margin-top: var(--spacing-md); }
 
-    /* ✅ 見出しを“上質路線”に統一 */
     .section-title {
       font-size: var(--font-size-sm);
       font-weight: 800;
@@ -437,6 +537,8 @@
       margin-top: var(--spacing-lg);
       padding-top: var(--spacing-md);
       border-top: 1px solid var(--border-muted);
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     .impact-level {
@@ -545,8 +647,6 @@
       .container { padding: var(--spacing-md) var(--spacing-sm); }
       .header { flex-direction: column; }
       .header-meta { align-items: flex-start; width: 100%; }
-      .toolbar { flex-wrap: wrap; }
-      .filter-group { width: 100%; }
       .status-indicator { margin-left: 0; width: 100%; }
       .card-content { padding: var(--spacing-md); padding-left: calc(var(--spacing-md) + 8px); }
       .card-title { font-size: var(--font-size-md); }
@@ -565,7 +665,7 @@
           </div>
           <h1>AI Impact Brief</h1>
         </div>
-        <p class="brand-tagline">構造で読む、AI戦略ニュース</p>
+        <p class="brand-tagline">世界のAI戦略を、日本市場の視点で評価（Score公開）</p>
       </div>
       <div class="header-meta">
         <time class="date-display" id="dateDisplay">—</time>
@@ -576,9 +676,9 @@
     <div class="toolbar">
       <div class="filter-group">
         <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="high">High</button>
-        <button class="filter-btn" data-filter="medium">Medium</button>
-        <button class="filter-btn" data-filter="low">Low</button>
+        <button class="filter-btn" data-filter="s90">90+</button>
+        <button class="filter-btn" data-filter="s70">70+</button>
+        <button class="filter-btn" data-filter="s50">50+</button>
       </div>
 
       <button class="action-btn" id="refreshBtn" aria-label="Refresh">
@@ -618,9 +718,10 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <p>Powered by The Guardian API × OpenAI</p>
+      <p>Independent • Powered by The Guardian API × OpenAI</p>
       <div class="footer-links">
         <a href="/about" class="footer-link">About</a>
+        <a href="/methodology" class="footer-link">Methodology</a>
         <a href="/privacy" class="footer-link">Privacy</a>
         <a href="/api/today?debug=1" class="footer-link">API Status</a>
       </div>
@@ -637,7 +738,7 @@
     const $$ = (selector) => document.querySelectorAll(selector);
 
     function escapeHtml(str) {
-      return String(str)
+      return String(str ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -660,6 +761,20 @@
       const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
       const wd = weekdays[date.getDay()];
       return `${y}年${m}月${d}日（${wd}）`;
+    }
+
+    function clampScore(score) {
+      const n = Number(score);
+      if (!Number.isFinite(n)) return null;
+      return Math.max(0, Math.min(100, Math.round(n)));
+    }
+
+    function scoreToLevel(score) {
+      const n = Number(score);
+      if (!Number.isFinite(n)) return null;
+      if (n >= 90) return "high";
+      if (n >= 70) return "medium";
+      return "low";
     }
 
     // ===== Status Management =====
@@ -691,16 +806,28 @@
     // ===== Filtering (保持) =====
     let currentFilter = "all";
 
+    function getCardScore(card) {
+      const v = card.dataset.score;
+      if (!v) return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+
     function applyFilter(filter) {
       currentFilter = filter;
 
       const cards = $$(".brief-card");
       cards.forEach(card => {
-        if (filter === "all" || card.dataset.level === filter) {
-          card.style.display = "block";
-        } else {
-          card.style.display = "none";
-        }
+        const s = getCardScore(card);
+        const level = card.dataset.level;
+
+        let show = true;
+        if (filter === "all") show = true;
+        else if (filter === "s90") show = (s !== null ? s >= 90 : level === "high");
+        else if (filter === "s70") show = (s !== null ? s >= 70 : (level === "high" || level === "medium"));
+        else if (filter === "s50") show = (s !== null ? s >= 50 : true);
+
+        card.style.display = show ? "block" : "none";
       });
 
       $$(".filter-btn").forEach(btn => {
@@ -722,45 +849,108 @@
       return `<ul class="bullet-list">${bullets}</ul>`;
     }
 
+    function renderTags(tags){
+      if (!Array.isArray(tags) || tags.length === 0) return "";
+      return `<div class="tag-row">${tags.slice(0,5).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>`;
+    }
+
+    function pick(item, keys, fallback = "") {
+      for (const k of keys) {
+        if (item && item[k] !== undefined && item[k] !== null && String(item[k]).trim() !== "") return item[k];
+      }
+      return fallback;
+    }
+
     function renderBriefCard(item) {
-      const level = normalizeLevel(item.impact_level);
-      const title = escapeHtml(item.title_ja || item.title || "タイトルなし");
-      const summary = escapeHtml(item.one_sentence || item.summary || "");
-      const url = item.original_url || item.originalUrl || "#";
+      // ---- 新旧API吸収 ----
+      const titleEn = pick(item, ["title_en","titleEn","title"], "");
+      const titleJa = pick(item, ["title_ja","titleJa"], "");
+      const title = escapeHtml(titleJa || titleEn || "タイトルなし");
 
-      const badgeText = { high: "HIGH", medium: "MEDIUM", low: "LOW" }[level] || "MEDIUM";
-      const levelText = { high: "高", medium: "中", low: "低" }[level] || "中";
+      const url = pick(item, ["original_url","originalUrl","url","link"], "#");
+      const source = pick(item, ["source","publisher","provider"], "");
+      const published = pick(item, ["published_at","publishedAt","published","date"], "");
 
-      // APIが新旧どっちでもOKに吸収
+      const importance = clampScore(pick(item, ["importance_score","importanceScore","score"], null));
+      const why = pick(item, ["why_it_matters","whyItMatters","impact_reason","one_sentence","summary"], "");
+      const jp = pick(item, ["japan_impact","japanImpact","jp_impact"], "");
+
+      const tags = item.tags || item.tag_list || item.tagList || [];
+
+      // legacy sections (残す)
       const fact = Array.isArray(item.fact_summary) ? item.fact_summary : (Array.isArray(item.what_happened) ? item.what_happened : []);
       const impl = Array.isArray(item.implications) ? item.implications : (Array.isArray(item.why_important) ? item.why_important : []);
       const outl = Array.isArray(item.outlook) ? item.outlook : (Array.isArray(item.action_advice) ? item.action_advice : []);
 
+      // ---- レベル決定：スコア優先、なければimpact_level ----
+      const levelFromScore = scoreToLevel(importance);
+      const level = levelFromScore || normalizeLevel(item.impact_level);
+
+      const badgeText = { high: "HIGH", medium: "MEDIUM", low: "LOW" }[level] || "MEDIUM";
+      const levelText = { high: "高", medium: "中", low: "低" }[level] || "中";
+
+      const scoreHtml = (importance !== null)
+        ? `
+          <div class="score-wrap">
+            <span class="score-badge ${level}">
+              <span class="num">${importance}</span>
+              <span class="label">score</span>
+            </span>
+            <span class="priority-badge ${level}">${badgeText}</span>
+          </div>
+        `
+        : `<span class="priority-badge ${level}">${badgeText}</span>`;
+
+      const metaHtml = `
+        <div class="meta-row">
+          ${source ? `<span>${escapeHtml(source)}</span>` : ""}
+          ${published ? `<span>${escapeHtml(published)}</span>` : ""}
+          <a href="/methodology" target="_blank" rel="noopener noreferrer">Methodology</a>
+        </div>
+      `;
+
+      const whyHtml = why
+        ? `<div class="score-why"><b>Why it matters:</b> ${escapeHtml(why)}</div>`
+        : "";
+
+      const jpHtml = jp
+        ? `<div class="jp-impact"><b>🇯🇵 Japan Impact:</b><br>${escapeHtml(jp)}</div>`
+        : "";
+
+      // summaryは “補足” として下に回す（必要なら）
+      const summary = escapeHtml(pick(item, ["one_sentence","summary"], ""));
+
       return `
-        <article class="brief-card ${level}" data-level="${level}">
+        <article class="brief-card ${level}" data-level="${level}" data-score="${importance !== null ? importance : ""}">
           <div class="card-content">
             <div class="card-header">
-              <span class="priority-badge ${level}">${badgeText}</span>
+              ${scoreHtml}
             </div>
 
             <h2 class="card-title">${title}</h2>
+            ${metaHtml}
+            ${whyHtml}
+            ${jpHtml}
+            ${renderTags(tags)}
+            ${summary && !why ? `<div class="card-summary">${summary}</div>` : ""}
 
-            ${summary ? `<div class="card-summary">${summary}</div>` : ""}
+            ${(fact && fact.length) ? `
+              <div class="card-section">
+                <h3 class="section-title">事実整理</h3>
+                ${renderBulletList(fact)}
+              </div>` : ""}
 
-            <div class="card-section">
-              <h3 class="section-title">事実整理</h3>
-              ${renderBulletList(fact)}
-            </div>
+            ${(impl && impl.length) ? `
+              <div class="card-section">
+                <h3 class="section-title">意味するもの</h3>
+                ${renderBulletList(impl)}
+              </div>` : ""}
 
-            <div class="card-section">
-              <h3 class="section-title">意味するもの</h3>
-              ${renderBulletList(impl)}
-            </div>
-
-            <div class="card-section">
-              <h3 class="section-title">今後の焦点</h3>
-              ${renderBulletList(outl)}
-            </div>
+            ${(outl && outl.length) ? `
+              <div class="card-section">
+                <h3 class="section-title">今後の焦点</h3>
+                ${renderBulletList(outl)}
+              </div>` : ""}
 
             <div class="card-footer">
               <div class="impact-level">
@@ -798,14 +988,18 @@
       `;
     }
 
-    // ===== Fetch Brief =====
+    // ===== Sort Strategy =====
     function impactOrder(level) {
-      // high > medium > low
       if (level === "high") return 3;
       if (level === "medium") return 2;
       return 1;
     }
 
+    function getItemScore(item){
+      return clampScore(item?.importance_score ?? item?.importanceScore ?? item?.score);
+    }
+
+    // ===== Fetch Brief =====
     async function fetchBrief({ cacheBust = false } = {}) {
       hideError();
       setStatus("loading", "取得中…");
@@ -846,11 +1040,16 @@
           return;
         }
 
-        // ✅ 順序を保証（High→Medium→Low）
+        // ✅ スコア優先で並べる（無い場合はimpact_levelで代替）
         const items = itemsRaw
           .slice(0, 3)
           .slice()
-          .sort((a, b) => impactOrder(normalizeLevel(b.impact_level)) - impactOrder(normalizeLevel(a.impact_level)));
+          .sort((a, b) => {
+            const sa = getItemScore(a);
+            const sb = getItemScore(b);
+            if (sa !== null || sb !== null) return (sb ?? -1) - (sa ?? -1);
+            return impactOrder(normalizeLevel(b.impact_level)) - impactOrder(normalizeLevel(a.impact_level));
+          });
 
         container.innerHTML = items.map(renderBriefCard).join("");
 
