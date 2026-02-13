@@ -5,37 +5,38 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0d1117" />
   <meta name="color-scheme" content="dark" />
-  <meta name="description" content="AI Impact Brief — 構造で読む、AI戦略ニュース。冷静分析型AIニュースブリーフ。" />
-
-  <!-- PWA -->
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" />
-
 
   <title>AI Impact Brief — 構造で読む、AI戦略ニュース</title>
-  <!-- SEO Meta Tags -->
+
+  <!-- SEO -->
   <meta name="description" content="投資家・経営層向けの冷静分析型AIニュースブリーフ。毎日3本、厳選されたAI関連ニュースを構造化して配信。感情ではなく、構造で読む。" />
   <meta name="keywords" content="AI,人工知能,ニュース,投資,戦略,分析,ビジネス,テクノロジー,OpenAI,Google,Microsoft" />
   <meta name="author" content="AI Impact Brief" />
   <link rel="canonical" href="https://ai-impact-brief.vercel.app/" />
-  
-  <!-- Open Graph / Facebook -->
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
+  <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://ai-impact-brief.vercel.app/" />
   <meta property="og:title" content="AI Impact Brief — 構造で読む、AI戦略ニュース" />
   <meta property="og:description" content="投資家・経営層向けの冷静分析型AIニュースブリーフ。毎日3本、感情ではなく構造で読む。" />
+  <!-- og-image.png が無い場合はこの行を削除してください -->
   <meta property="og:image" content="https://ai-impact-brief.vercel.app/og-image.png" />
   <meta property="og:site_name" content="AI Impact Brief" />
   <meta property="og:locale" content="ja_JP" />
-  
+
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:url" content="https://ai-impact-brief.vercel.app/" />
   <meta name="twitter:title" content="AI Impact Brief — 構造で読む、AI戦略ニュース" />
   <meta name="twitter:description" content="投資家・経営層向けの冷静分析型AIニュースブリーフ。毎日3本、感情ではなく構造で読む。" />
   <meta name="twitter:image" content="https://ai-impact-brief.vercel.app/og-image.png" />
-  
-  <!-- Structured Data (JSON-LD) -->
+
+  <!-- Structured Data -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -54,79 +55,57 @@
     }
   }
   </script>
-  
-  <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-  
-  <!-- Preconnect for Performance -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+  <!-- Performance (軽量に) -->
   <link rel="dns-prefetch" href="https://content.guardianapis.com" />
   <link rel="dns-prefetch" href="https://api.openai.com" />
 
   <style>
-    /* ===== Variables: Cold Analysis Theme ===== */
     :root {
-      /* Base Colors - Financial Terminal Aesthetic */
       --bg-primary: #0d1117;
       --bg-secondary: #010409;
       --card-bg: #161b22;
       --card-hover: #1c2128;
-      
-      /* Text */
+
       --text-primary: #e6edf3;
       --text-secondary: #8b949e;
       --text-muted: #6e7681;
-      
-      /* Accents - Priority Signals Only */
+
       --accent-high: #f85149;
       --accent-medium: #d29922;
       --accent-low: #3fb950;
-      
-      /* Borders & Lines */
+
       --border-default: #30363d;
       --border-muted: #21262d;
-      
-      /* Shadows */
+
       --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.4);
       --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.5);
-      
-      /* Layout */
+
       --max-width: 1000px;
       --spacing-xs: 8px;
       --spacing-sm: 12px;
       --spacing-md: 16px;
       --spacing-lg: 24px;
       --spacing-xl: 32px;
-      
-      /* Typography */
+
       --font-size-xs: 11px;
       --font-size-sm: 13px;
       --font-size-base: 14px;
       --font-size-md: 16px;
       --font-size-lg: 18px;
       --font-size-xl: 20px;
-      --font-size-2xl: 24px;
-      
-      /* Radius */
+
       --radius-sm: 6px;
       --radius-md: 8px;
       --radius-lg: 12px;
     }
 
-    /* ===== Reset & Base ===== */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html, body {
-      height: 100%;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-        "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", 
+        "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP",
         "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       font-size: var(--font-size-base);
       line-height: 1.6;
@@ -136,7 +115,6 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* ===== Container ===== */
     .container {
       max-width: var(--max-width);
       margin: 0 auto;
@@ -154,9 +132,7 @@
       margin-bottom: var(--spacing-lg);
     }
 
-    .brand {
-      flex: 1;
-    }
+    .brand { flex: 1; }
 
     .brand-title {
       display: flex;
@@ -165,10 +141,11 @@
       margin-bottom: var(--spacing-xs);
     }
 
+    /* ✅ ロゴを少し大きく＋影で“メディア感” */
     .logo {
-      width: 32px;
-      height: 32px;
-      border-radius: var(--radius-sm);
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
       background: var(--card-bg);
       border: 1px solid var(--border-default);
       overflow: hidden;
@@ -176,6 +153,7 @@
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
+      box-shadow: 0 10px 24px rgba(0,0,0,.35);
     }
 
     .logo img {
@@ -187,7 +165,7 @@
 
     .brand h1 {
       font-size: var(--font-size-xl);
-      font-weight: 600;
+      font-weight: 650;
       letter-spacing: -0.02em;
       color: var(--text-primary);
     }
@@ -235,8 +213,8 @@
       padding: 6px 12px;
       border-radius: var(--radius-sm);
       font-size: var(--font-size-xs);
-      font-weight: 600;
-      letter-spacing: 0.05em;
+      font-weight: 750;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
       cursor: pointer;
       transition: all 0.15s ease;
@@ -261,7 +239,7 @@
       padding: 6px 12px;
       border-radius: var(--radius-sm);
       font-size: var(--font-size-sm);
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
@@ -269,13 +247,8 @@
       transition: all 0.15s ease;
     }
 
-    .action-btn:hover {
-      background: var(--card-hover);
-    }
-
-    .action-btn:active {
-      transform: translateY(1px);
-    }
+    .action-btn:hover { background: var(--card-hover); }
+    .action-btn:active { transform: translateY(1px); }
 
     .status-indicator {
       margin-left: auto;
@@ -298,13 +271,8 @@
       animation: pulse 1.5s ease-in-out infinite;
     }
 
-    .status-dot.success {
-      background: var(--accent-low);
-    }
-
-    .status-dot.error {
-      background: var(--accent-high);
-    }
+    .status-dot.success { background: var(--accent-low); }
+    .status-dot.error { background: var(--accent-high); }
 
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -334,7 +302,6 @@
       border-color: var(--border-muted);
     }
 
-    /* Priority Accent Bar */
     .brief-card::before {
       content: '';
       position: absolute;
@@ -345,19 +312,10 @@
       background: var(--text-secondary);
     }
 
-    .brief-card.high::before {
-      background: var(--accent-high);
-    }
+    .brief-card.high::before { background: var(--accent-high); }
+    .brief-card.medium::before { background: var(--accent-medium); }
+    .brief-card.low::before { background: var(--accent-low); }
 
-    .brief-card.medium::before {
-      background: var(--accent-medium);
-    }
-
-    .brief-card.low::before {
-      background: var(--accent-low);
-    }
-
-    /* Card Content */
     .card-content {
       padding: var(--spacing-lg);
       padding-left: calc(var(--spacing-lg) + 8px);
@@ -370,40 +328,43 @@
       margin-bottom: var(--spacing-md);
     }
 
+    /* ✅ バッジ視認性：文字を太く、背景の濃度を少し上げ、表示は HIGH/MEDIUM/LOW */
     .priority-badge {
       display: inline-flex;
       align-items: center;
-      padding: 4px 10px;
+      padding: 5px 10px;
       border-radius: var(--radius-sm);
       font-size: var(--font-size-xs);
-      font-weight: 700;
-      letter-spacing: 0.05em;
+      font-weight: 850;
+      letter-spacing: 0.07em;
       text-transform: uppercase;
       background: var(--border-default);
       color: var(--text-secondary);
+      border: 1px solid rgba(255,255,255,0.06);
+      user-select: none;
     }
 
     .priority-badge.high {
-      background: rgba(248, 81, 73, 0.15);
-      color: var(--accent-high);
-      border: 1px solid rgba(248, 81, 73, 0.3);
+      background: rgba(248, 81, 73, 0.22);
+      color: #ffb4ae;
+      border: 1px solid rgba(248, 81, 73, 0.35);
     }
 
     .priority-badge.medium {
-      background: rgba(210, 153, 34, 0.15);
-      color: var(--accent-medium);
-      border: 1px solid rgba(210, 153, 34, 0.3);
+      background: rgba(210, 153, 34, 0.22);
+      color: #ffd48a;
+      border: 1px solid rgba(210, 153, 34, 0.35);
     }
 
     .priority-badge.low {
-      background: rgba(63, 185, 80, 0.15);
-      color: var(--accent-low);
-      border: 1px solid rgba(63, 185, 80, 0.3);
+      background: rgba(63, 185, 80, 0.22);
+      color: #b7f7c3;
+      border: 1px solid rgba(63, 185, 80, 0.35);
     }
 
     .card-title {
       font-size: var(--font-size-lg);
-      font-weight: 600;
+      font-weight: 650;
       line-height: 1.4;
       letter-spacing: -0.01em;
       color: var(--text-primary);
@@ -413,23 +374,21 @@
     .card-summary {
       font-size: var(--font-size-sm);
       line-height: 1.6;
-      color: var(--text-secondary);
+      color: rgba(230,237,243,0.82);
       padding: var(--spacing-sm);
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.04);
       border-left: 2px solid var(--border-default);
       border-radius: var(--radius-sm);
       margin-bottom: var(--spacing-md);
     }
 
-    /* Card Sections */
-    .card-section {
-      margin-top: var(--spacing-md);
-    }
+    .card-section { margin-top: var(--spacing-md); }
 
+    /* ✅ 見出しを“上質路線”に統一 */
     .section-title {
       font-size: var(--font-size-sm);
-      font-weight: 700;
-      letter-spacing: 0.03em;
+      font-weight: 800;
+      letter-spacing: 0.06em;
       color: var(--text-primary);
       margin-bottom: var(--spacing-sm);
       display: flex;
@@ -445,17 +404,9 @@
       border-radius: 2px;
     }
 
-    .brief-card.high .section-title::before {
-      background: var(--accent-high);
-    }
-
-    .brief-card.medium .section-title::before {
-      background: var(--accent-medium);
-    }
-
-    .brief-card.low .section-title::before {
-      background: var(--accent-low);
-    }
+    .brief-card.high .section-title::before { background: var(--accent-high); }
+    .brief-card.medium .section-title::before { background: var(--accent-medium); }
+    .brief-card.low .section-title::before { background: var(--accent-low); }
 
     .bullet-list {
       list-style: none;
@@ -479,7 +430,6 @@
       color: var(--text-muted);
     }
 
-    /* Card Footer */
     .card-footer {
       display: flex;
       align-items: center;
@@ -495,21 +445,13 @@
     }
 
     .impact-value {
-      font-weight: 600;
+      font-weight: 700;
       margin-left: 4px;
     }
 
-    .brief-card.high .impact-value {
-      color: var(--accent-high);
-    }
-
-    .brief-card.medium .impact-value {
-      color: var(--accent-medium);
-    }
-
-    .brief-card.low .impact-value {
-      color: var(--accent-low);
-    }
+    .brief-card.high .impact-value { color: #ffb4ae; }
+    .brief-card.medium .impact-value { color: #ffd48a; }
+    .brief-card.low .impact-value { color: #b7f7c3; }
 
     .source-link {
       display: inline-flex;
@@ -521,14 +463,8 @@
       transition: color 0.15s ease;
     }
 
-    .source-link:hover {
-      color: var(--text-primary);
-    }
-
-    .source-link::after {
-      content: '↗';
-      font-size: 10px;
-    }
+    .source-link:hover { color: var(--text-primary); }
+    .source-link::after { content: '↗'; font-size: 10px; }
 
     /* ===== Loading Skeleton ===== */
     .skeleton-card {
@@ -544,40 +480,27 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.03),
-        transparent
-      );
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
       transform: translateX(-100%);
       animation: shimmer 1.5s infinite;
     }
 
-    @keyframes shimmer {
-      100% { transform: translateX(100%); }
-    }
+    @keyframes shimmer { 100% { transform: translateX(100%); } }
 
     .skeleton-line {
       height: 12px;
-      background: var(--border-default);
+      background: rgba(255,255,255,0.08);
       border-radius: var(--radius-sm);
       margin-bottom: var(--spacing-sm);
     }
 
-    .skeleton-line.title {
-      height: 20px;
-      width: 70%;
-    }
-
-    .skeleton-line.short {
-      width: 40%;
-    }
+    .skeleton-line.title { height: 20px; width: 70%; }
+    .skeleton-line.short { width: 40%; }
 
     /* ===== Error Message ===== */
     .error-box {
-      background: rgba(248, 81, 73, 0.1);
-      border: 1px solid rgba(248, 81, 73, 0.3);
+      background: rgba(248, 81, 73, 0.10);
+      border: 1px solid rgba(248, 81, 73, 0.28);
       border-radius: var(--radius-md);
       padding: var(--spacing-md);
       margin-bottom: var(--spacing-lg);
@@ -588,9 +511,7 @@
       display: none;
     }
 
-    .error-box.show {
-      display: block;
-    }
+    .error-box.show { display: block; }
 
     /* ===== Footer ===== */
     .footer {
@@ -608,6 +529,7 @@
       justify-content: center;
       gap: var(--spacing-md);
       margin-top: var(--spacing-sm);
+      flex-wrap: wrap;
     }
 
     .footer-link {
@@ -616,46 +538,18 @@
       transition: color 0.15s ease;
     }
 
-    .footer-link:hover {
-      color: var(--text-secondary);
-    }
+    .footer-link:hover { color: var(--text-secondary); }
 
     /* ===== Responsive ===== */
     @media (max-width: 768px) {
-      .container {
-        padding: var(--spacing-md) var(--spacing-sm);
-      }
-
-      .header {
-        flex-direction: column;
-      }
-
-      .header-meta {
-        align-items: flex-start;
-        width: 100%;
-      }
-
-      .toolbar {
-        flex-wrap: wrap;
-      }
-
-      .filter-group {
-        width: 100%;
-      }
-
-      .status-indicator {
-        margin-left: 0;
-        width: 100%;
-      }
-
-      .card-content {
-        padding: var(--spacing-md);
-        padding-left: calc(var(--spacing-md) + 8px);
-      }
-
-      .card-title {
-        font-size: var(--font-size-md);
-      }
+      .container { padding: var(--spacing-md) var(--spacing-sm); }
+      .header { flex-direction: column; }
+      .header-meta { align-items: flex-start; width: 100%; }
+      .toolbar { flex-wrap: wrap; }
+      .filter-group { width: 100%; }
+      .status-indicator { margin-left: 0; width: 100%; }
+      .card-content { padding: var(--spacing-md); padding-left: calc(var(--spacing-md) + 8px); }
+      .card-title { font-size: var(--font-size-md); }
     }
   </style>
 </head>
@@ -686,10 +580,11 @@
         <button class="filter-btn" data-filter="medium">Medium</button>
         <button class="filter-btn" data-filter="low">Low</button>
       </div>
-      <button class="action-btn" id="refreshBtn">
-        <span>↻</span>
-        <span>更新</span>
+
+      <button class="action-btn" id="refreshBtn" aria-label="Refresh">
+        <span>↻</span><span>更新</span>
       </button>
+
       <div class="status-indicator">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">準備中</span>
@@ -701,7 +596,6 @@
 
     <!-- Main Content -->
     <main class="cards" id="cardsContainer">
-      <!-- Loading skeletons (will be replaced by actual content) -->
       <div class="skeleton-card">
         <div class="skeleton-line title"></div>
         <div class="skeleton-line"></div>
@@ -726,9 +620,9 @@
     <footer class="footer">
       <p>Powered by The Guardian API × OpenAI</p>
       <div class="footer-links">
-        <a href="#" class="footer-link">About</a>
-        <a href="#" class="footer-link">Privacy</a>
-        <a href="#" class="footer-link">API Status</a>
+        <a href="/about" class="footer-link">About</a>
+        <a href="/privacy" class="footer-link">Privacy</a>
+        <a href="/api/today?debug=1" class="footer-link">API Status</a>
       </div>
     </footer>
   </div>
@@ -772,12 +666,12 @@
     function setStatus(state, text) {
       const dot = $("#statusDot");
       const textEl = $("#statusText");
-      
+
       dot.classList.remove("loading", "success", "error");
       if (state === "loading") dot.classList.add("loading");
       if (state === "success") dot.classList.add("success");
       if (state === "error") dot.classList.add("error");
-      
+
       textEl.textContent = text;
     }
 
@@ -794,64 +688,86 @@
       errorBox.classList.remove("show");
     }
 
+    // ===== Filtering (保持) =====
+    let currentFilter = "all";
+
+    function applyFilter(filter) {
+      currentFilter = filter;
+
+      const cards = $$(".brief-card");
+      cards.forEach(card => {
+        if (filter === "all" || card.dataset.level === filter) {
+          card.style.display = "block";
+        } else {
+          card.style.display = "none";
+        }
+      });
+
+      $$(".filter-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.filter === filter);
+      });
+    }
+
     // ===== Render Functions =====
     function renderBulletList(items) {
       if (!Array.isArray(items) || items.length === 0) {
         return '<ul class="bullet-list"><li>情報なし</li></ul>';
       }
-      
+
       const bullets = items
         .slice(0, 4)
         .map(item => `<li>${escapeHtml(item)}</li>`)
         .join("");
-      
+
       return `<ul class="bullet-list">${bullets}</ul>`;
     }
 
     function renderBriefCard(item) {
       const level = normalizeLevel(item.impact_level);
-      const title = escapeHtml(item.title_ja || "タイトルなし");
-      const summary = escapeHtml(item.one_sentence || "");
+      const title = escapeHtml(item.title_ja || item.title || "タイトルなし");
+      const summary = escapeHtml(item.one_sentence || item.summary || "");
       const url = item.original_url || item.originalUrl || "#";
-      
-      const levelText = {
-        high: "高",
-        medium: "中",
-        low: "低"
-      }[level] || "中";
+
+      const badgeText = { high: "HIGH", medium: "MEDIUM", low: "LOW" }[level] || "MEDIUM";
+      const levelText = { high: "高", medium: "中", low: "低" }[level] || "中";
+
+      // APIが新旧どっちでもOKに吸収
+      const fact = Array.isArray(item.fact_summary) ? item.fact_summary : (Array.isArray(item.what_happened) ? item.what_happened : []);
+      const impl = Array.isArray(item.implications) ? item.implications : (Array.isArray(item.why_important) ? item.why_important : []);
+      const outl = Array.isArray(item.outlook) ? item.outlook : (Array.isArray(item.action_advice) ? item.action_advice : []);
 
       return `
         <article class="brief-card ${level}" data-level="${level}">
           <div class="card-content">
             <div class="card-header">
-              <span class="priority-badge ${level}">${level}</span>
+              <span class="priority-badge ${level}">${badgeText}</span>
             </div>
-            
+
             <h2 class="card-title">${title}</h2>
-            
-            ${summary ? `<div class="card-summary">${summary}</div>` : ''}
-            
+
+            ${summary ? `<div class="card-summary">${summary}</div>` : ""}
+
             <div class="card-section">
-              <h3 class="section-title">事実の要約</h3>
-              ${renderBulletList(item.fact_summary)}
+              <h3 class="section-title">事実整理</h3>
+              ${renderBulletList(fact)}
             </div>
-            
+
             <div class="card-section">
-              <h3 class="section-title">市場・企業への示唆</h3>
-              ${renderBulletList(item.implications)}
+              <h3 class="section-title">意味するもの</h3>
+              ${renderBulletList(impl)}
             </div>
-            
+
             <div class="card-section">
-              <h3 class="section-title">今後の見通し</h3>
-              ${renderBulletList(item.outlook)}
+              <h3 class="section-title">今後の焦点</h3>
+              ${renderBulletList(outl)}
             </div>
-            
+
             <div class="card-footer">
               <div class="impact-level">
                 影響度評価:<span class="impact-value">${levelText}</span>
               </div>
               <a href="${escapeHtml(url)}" class="source-link" target="_blank" rel="noopener noreferrer">
-                The Guardian
+                元記事を読む
               </a>
             </div>
           </div>
@@ -882,55 +798,40 @@
       `;
     }
 
-    // ===== Filtering =====
-    function applyFilter(filter) {
-      const cards = $$(".brief-card");
-      
-      cards.forEach(card => {
-        if (filter === "all" || card.dataset.level === filter) {
-          card.style.display = "block";
-        } else {
-          card.style.display = "none";
-        }
-      });
-
-      // Update active button
-      $$(".filter-btn").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.filter === filter);
-      });
+    // ===== Fetch Brief =====
+    function impactOrder(level) {
+      // high > medium > low
+      if (level === "high") return 3;
+      if (level === "medium") return 2;
+      return 1;
     }
 
-    // ===== Fetch Brief =====
     async function fetchBrief({ cacheBust = false } = {}) {
       hideError();
       setStatus("loading", "取得中…");
-      
+
       const container = $("#cardsContainer");
       container.innerHTML = renderSkeletons();
-      
-      // Update date
+
       $("#dateDisplay").textContent = formatDate(new Date());
-      
-      // Build URL with optional cache busting
+
       const url = new URL(API_PATH, location.origin);
-      if (cacheBust) {
-        url.searchParams.set(CACHE_BUST_PARAM, String(Date.now()));
-      }
-      
+      if (cacheBust) url.searchParams.set(CACHE_BUST_PARAM, String(Date.now()));
+
       try {
         const response = await fetch(url.toString(), {
           method: "GET",
           cache: "no-store",
           headers: { "Accept": "application/json" }
         });
-        
+
         const text = await response.text();
-        
+
         if (!response.ok) {
           showError(`API Error: ${response.status} ${response.statusText}\n\n${text.slice(0, 1200)}`);
           return;
         }
-        
+
         let data;
         try {
           data = JSON.parse(text);
@@ -938,20 +839,26 @@
           showError(`JSON Parse Error\n\n${text.slice(0, 1200)}`);
           return;
         }
-        
-        const items = Array.isArray(data.items) ? data.items : [];
-        
-        if (items.length === 0) {
+
+        const itemsRaw = Array.isArray(data.items) ? data.items : (Array.isArray(data.articles) ? data.articles : []);
+        if (itemsRaw.length === 0) {
           showError("APIから記事が返されませんでした。");
           return;
         }
-        
-        // Render cards
-        const html = items.slice(0, 3).map(renderBriefCard).join("");
-        container.innerHTML = html;
-        
+
+        // ✅ 順序を保証（High→Medium→Low）
+        const items = itemsRaw
+          .slice(0, 3)
+          .slice()
+          .sort((a, b) => impactOrder(normalizeLevel(b.impact_level)) - impactOrder(normalizeLevel(a.impact_level)));
+
+        container.innerHTML = items.map(renderBriefCard).join("");
+
         setStatus("success", "最新を表示中");
-        
+
+        // ✅ フィルタ状態を保持して再適用
+        applyFilter(currentFilter);
+
       } catch (error) {
         showError(`Network Error: ${error?.message || String(error)}\n\nネットワーク接続を確認してください。`);
       }
@@ -960,39 +867,31 @@
     // ===== PWA Service Worker =====
     async function registerServiceWorker() {
       if (!("serviceWorker" in navigator)) return;
-      
+
       try {
         const registration = await navigator.serviceWorker.register("/sw.js");
         registration.update().catch(() => {});
-      } catch (error) {
-        // Service worker registration failed, continue without it
+      } catch (_) {
+        // ignore
       }
     }
 
     // ===== Event Listeners =====
     function initEventListeners() {
-      // Refresh button
-      $("#refreshBtn").addEventListener("click", () => {
-        fetchBrief({ cacheBust: true });
-      });
-      
-      // Filter buttons
+      $("#refreshBtn").addEventListener("click", () => fetchBrief({ cacheBust: true }));
+
       $$(".filter-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const filter = btn.dataset.filter;
-          applyFilter(filter);
-        });
+        btn.addEventListener("click", () => applyFilter(btn.dataset.filter));
       });
     }
 
-    // ===== Initialization =====
+    // ===== Init =====
     function init() {
       registerServiceWorker();
       initEventListeners();
       fetchBrief({ cacheBust: false });
     }
 
-    // Start the app
     init();
   </script>
 </body>
