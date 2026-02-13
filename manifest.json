@@ -1,28 +1,29 @@
 {
   "name": "AI Impact Brief",
   "short_name": "AI Brief",
-  "description": "AIニュースの本質だけを届けるブリーフィング",
+  "description": "構造で読む、AI戦略ニュース。冷静分析型AIニュースブリーフ。",
   "start_url": "/",
-  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#111111",
-  "theme_color": "#111111",
-  "lang": "ja",
-  "dir": "ltr",
-
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
+      "src": "/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
+      "src": "/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png",
+      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
-  ]
+  ],
+  "categories": ["news", "finance", "business"],
+  "lang": "ja",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false
 }
