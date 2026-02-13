@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Disallow API endpoints from indexing
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://ai-impact-brief.vercel.app/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1
