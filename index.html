@@ -1,260 +1,525 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI Impact Brief</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="AI Impact Brief — Today's AI News (curated, calm, analytical)" />
 
-<link rel="icon" href="6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" />
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/logo.png" />
 
-<style>
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%);
-  color: white;
-  padding: 20px;
-}
+  <title>AI Impact Brief</title>
 
-.container {
-  max-width: 720px;
-  margin: 0 auto;
-}
+  <style>
+    :root{
+      --bg0:#070b14;
+      --bg1:#0b1220;
+      --card:#101a2f;
+      --card2:#0d1628;
+      --text:#e9edf6;
+      --muted:rgba(233,237,246,.72);
+      --muted2:rgba(233,237,246,.55);
+      --line:rgba(255,255,255,.10);
+      --accent:#6fa7ff;
+      --shadow: 0 18px 55px rgba(0,0,0,.55);
+      --radius:22px;
+      --radius2:18px;
+      --maxw: 720px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+        "Hiragino Sans", "Noto Sans JP", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 900px at 50% -10%, rgba(111,167,255,.18), transparent 60%),
+        radial-gradient(900px 900px at 20% 20%, rgba(120,255,210,.10), transparent 65%),
+        radial-gradient(900px 900px at 90% 40%, rgba(255,120,170,.10), transparent 65%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      padding: 22px 16px 40px;
+    }
 
-.site-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 8px;
-}
+    .wrap{max-width:var(--maxw); margin:0 auto;}
+    .top{
+      display:flex;
+      align-items:flex-start;
+      gap:14px;
+      padding: 6px 2px 18px;
+    }
+    .logo{
+      width:44px;height:44px;border-radius:12px;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 14px 40px rgba(0,0,0,.45);
+      overflow:hidden;
+      display:flex;align-items:center;justify-content:center;
+      flex:0 0 auto;
+    }
+    .logo img{
+      width:100%;height:100%;object-fit:cover; /* 小さく見えないように */
+      display:block;
+    }
+    .brand{
+      flex:1;
+      min-width:0;
+    }
+    .brand h1{
+      margin:0;
+      font-size:24px;
+      letter-spacing:.01em;
+      line-height:1.15;
+    }
+    .brand .sub{
+      margin-top:4px;
+      color:var(--muted2);
+      font-size:13px;
+      letter-spacing:.02em;
+    }
+    .date{
+      margin-top:10px;
+      color:rgba(233,237,246,.62);
+      font-size:12px;
+      letter-spacing:.03em;
+    }
 
-.site-logo {
-  width: 64px;   /* ← ロゴ拡大 */
-  height: 64px;
-  border-radius: 16px;
-  object-fit: cover;
-  box-shadow: 0 0 18px rgba(59,130,246,0.35);
-}
+    .toolbar{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin: 4px 0 16px;
+    }
+    .btn{
+      appearance:none;border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding:10px 12px;
+      border-radius: 14px;
+      font-size:13px;
+      font-weight:700;
+      letter-spacing:.02em;
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
+      cursor:pointer;
+      display:inline-flex;align-items:center;gap:8px;
+    }
+    .btn:active{transform: translateY(1px)}
+    .btn.primary{
+      background: rgba(111,167,255,.18);
+      border-color: rgba(111,167,255,.28);
+    }
 
-h1 {
-  margin: 0;
-  font-size: 28px;
-}
+    .status{
+      margin-left:auto;
+      font-size:12px;
+      color:var(--muted2);
+      display:flex;align-items:center;gap:8px;
+      user-select:none;
+    }
+    .dot{
+      width:8px;height:8px;border-radius:999px;
+      background: rgba(255,255,255,.25);
+      box-shadow: 0 0 0 4px rgba(255,255,255,.06);
+    }
+    .dot.ok{background: rgba(83,226,140,.95); box-shadow: 0 0 0 4px rgba(83,226,140,.12);}
+    .dot.bad{background: rgba(255,95,95,.95); box-shadow: 0 0 0 4px rgba(255,95,95,.12);}
 
-.subtitle {
-  margin: 6px 0 0;
-  color: #94a3b8;
-  font-size: 14px;
-}
+    .cards{display:flex; flex-direction:column; gap:14px;}
 
-.date {
-  color: #64748b;
-  font-size: 13px;
-  letter-spacing: 0.6px;
-  margin-bottom: 24px;
-}
+    .card{
+      position:relative;
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      padding: 16px 16px 14px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card::before{
+      content:"";
+      position:absolute; inset:-1px;
+      background: radial-gradient(600px 200px at 30% 0%, rgba(111,167,255,.18), transparent 60%);
+      pointer-events:none;
+      opacity:.6;
+    }
+    .card > *{position:relative}
 
-/* ===== Cards ===== */
+    .headrow{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
 
-.card {
-  background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
-  padding: 20px;
-  border-radius: 18px;
-  margin-bottom: 20px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-}
+    /* ===== Badge: strong contrast ===== */
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:6px 12px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.04em;
+      line-height:1;
+      color:#0b1220;
+      background:rgba(255,255,255,.92);
+      border:1px solid rgba(255,255,255,.35);
+      box-shadow:0 12px 28px rgba(0,0,0,.25);
+      text-transform:uppercase;
+      user-select:none;
+      min-width:70px;
+    }
+    .badge[data-level="High"]{
+      background:linear-gradient(180deg, rgba(255,95,95,.98), rgba(255,95,95,.78));
+      color:#0b1220;
+      border-color:rgba(255,95,95,.35);
+    }
+    .badge[data-level="Medium"]{
+      background:linear-gradient(180deg, rgba(255,199,63,.98), rgba(255,199,63,.78));
+      color:#0b1220;
+      border-color:rgba(255,199,63,.35);
+    }
+    .badge[data-level="Low"]{
+      background:linear-gradient(180deg, rgba(83,226,140,.98), rgba(83,226,140,.78));
+      color:#0b1220;
+      border-color:rgba(83,226,140,.35);
+    }
 
-.badge {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: bold;
-  margin-bottom: 10px;
-}
+    .title{
+      margin: 6px 0 10px;
+      font-size:18px;
+      letter-spacing:.01em;
+      line-height:1.28;
+    }
+    .one{
+      margin: 0 0 14px;
+      color: rgba(233,237,246,.88);
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      padding: 12px 12px;
+      border-radius: 16px;
+      font-size:13px;
+      line-height:1.55;
+    }
 
-.badge.high { background: #ef4444; }
-.badge.medium { background: #f59e0b; }
-.badge.low { background: #22c55e; }
+    /* ===== Sections ===== */
+    .section{
+      margin-top: 12px;
+    }
+    .section-title{
+      margin: 0 0 8px;
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:.06em;
+      color:rgba(233,237,246,.92);
+      display:flex; align-items:center;
+      gap:8px;
+    }
+    .section-title::before{
+      content:"";
+      width:10px;height:10px;border-radius:3px;
+      background: rgba(111,167,255,.95);
+      box-shadow: 0 10px 26px rgba(111,167,255,.22);
+    }
+    .bullets{
+      margin:0;
+      padding-left: 16px;
+      color: rgba(233,237,246,.86);
+      font-size:13px;
+      line-height:1.6;
+    }
+    .bullets li{margin:6px 0}
 
-.title {
-  font-size: 18px;
-  font-weight: bold;
-  margin: 8px 0;
-}
+    .actions{
+      margin-top: 14px;
+      display:flex;
+      justify-content:flex-start;
+      gap:10px;
+    }
+    .linkbtn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding: 11px 14px;
+      border-radius: 14px;
+      text-decoration:none;
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:.02em;
+      color:#0b1220;
+      background: linear-gradient(180deg, rgba(111,167,255,.98), rgba(111,167,255,.80));
+      border:1px solid rgba(111,167,255,.35);
+      box-shadow: 0 16px 40px rgba(111,167,255,.18);
+    }
 
-.summary {
-  background: rgba(255,255,255,0.08);
-  padding: 14px;
-  border-radius: 12px;
-  margin: 10px 0 14px;
-}
+    /* Loading skeleton */
+    .skeleton{
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.05);
+      height: 140px;
+      overflow:hidden;
+      position:relative;
+      box-shadow: var(--shadow);
+    }
+    .skeleton::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.10), transparent);
+      transform: translateX(-100%);
+      animation: shimmer 1.2s infinite;
+    }
+    @keyframes shimmer{
+      100%{transform: translateX(100%)}
+    }
 
-.section-title {
-  margin-top: 14px;
-  font-weight: bold;
-  color: #93c5fd;
-}
+    .errorbox{
+      margin-top: 12px;
+      padding: 12px 12px;
+      border-radius: 16px;
+      background: rgba(255,95,95,.10);
+      border: 1px solid rgba(255,95,95,.22);
+      color: rgba(233,237,246,.92);
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
 
-ul {
-  padding-left: 18px;
-}
-
-li {
-  margin: 6px 0;
-  color: #cbd5e1;
-}
-
-.btn {
-  margin-top: 14px;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.btn:hover {
-  background: #2563eb;
-}
-
-.loading {
-  text-align: center;
-  margin-top: 40px;
-  color: #94a3b8;
-}
-
-.error {
-  color: #ef4444;
-  text-align: center;
-  margin-top: 20px;
-}
-</style>
+    footer{
+      margin-top: 20px;
+      color: rgba(233,237,246,.45);
+      font-size: 12px;
+      text-align:center;
+    }
+  </style>
 </head>
 
 <body>
-<div class="container">
+  <div class="wrap">
+    <header class="top">
+      <div class="logo" aria-label="AI Impact Brief Logo">
+        <!-- ロゴファイル名：logo.png を推奨。あなたがGitHubで名前変更したならここも合わせる -->
+        <img src="/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" alt="AI Impact Brief" /> alt="AI Impact Brief" />
+      </div>
+      <div class="brand">
+        <h1>AI Impact Brief</h1>
+        <div class="sub">Today's AI News</div>
+        <div class="date" id="dateLine">—</div>
+      </div>
+    </header>
 
-<header class="site-header">
-  <img
-    src="6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png"
-    alt="AI Impact Brief Logo"
-    class="site-logo"
-  />
-  <div>
-    <h1>AI Impact Brief</h1>
-    <p class="subtitle">Today's AI News</p>
+    <div class="toolbar">
+      <button class="btn primary" id="reloadBtn">↻ 更新</button>
+      <button class="btn" id="clearCacheBtn">🧹 キャッシュ更新</button>
+      <div class="status" id="statusLine"><span class="dot" id="statusDot"></span><span id="statusText">準備中</span></div>
+    </div>
+
+    <main id="content">
+      <div class="cards" id="cards">
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      </div>
+      <div id="error" class="errorbox" style="display:none;"></div>
+    </main>
+
+    <footer>Independent • Not affiliated with any publisher.</footer>
   </div>
-</header>
 
-<div class="date" id="todayDate"></div>
+  <script>
+    // ===== Config =====
+    const API_PATH = "/api/today";         // VercelのAPI
+    const FORCE_BUST_PARAM = "v";          // cache-bust param name
 
-<div id="content" class="loading">
-  Loading today's AI brief...
-</div>
-
-</div>
-
-<script>
-const API_PATH = "/api/today";
-
-/* ===== 英語日付（東京時間） ===== */
-function formatDateTokyoEnglish() {
-  const now = new Date();
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Tokyo",
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  }).format(now);
-}
-
-document.getElementById("todayDate").textContent =
-  formatDateTokyoEnglish();
-
-/* ===== Utility ===== */
-function impactOrder(level) {
-  if (level === "High") return 3;
-  if (level === "Medium") return 2;
-  return 1;
-}
-
-function safeArray(arr) {
-  return Array.isArray(arr) ? arr : [];
-}
-
-/* ===== Fetch ===== */
-async function fetchNews() {
-  try {
-    const res = await fetch(API_PATH);
-    const data = await res.json();
-
-    const list = data.items || data.articles;
-
-    if (!Array.isArray(list)) {
-      throw new Error("Invalid API format");
+    // ===== Utilities =====
+    const $ = (s) => document.querySelector(s);
+    function setStatus(ok, text){
+      $("#statusText").textContent = text;
+      $("#statusDot").classList.toggle("ok", !!ok);
+      $("#statusDot").classList.toggle("bad", ok === false);
     }
 
-    list.sort((a, b) =>
-      impactOrder(b.impact_level) - impactOrder(a.impact_level)
-    );
+    function toJapaneseDateLine(dateObj){
+      // Friday, February 13, 2026 の英語をやめて「2026年2月13日（金）」に
+      const y = dateObj.getFullYear();
+      const m = dateObj.getMonth()+1;
+      const d = dateObj.getDate();
+      const wd = ["日","月","火","水","木","金","土"][dateObj.getDay()];
+      return `${y}年${m}月${d}日（${wd}）`;
+    }
 
-    renderNews(list);
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
 
-  } catch (err) {
-    document.getElementById("content").innerHTML =
-      `<div class="error">ニュースの取得に失敗しました</div>`;
-  }
-}
+    function normalizeLevel(level){
+      const s = String(level||"").toLowerCase();
+      if(s.includes("high")) return "High";
+      if(s.includes("medium")) return "Medium";
+      if(s.includes("low")) return "Low";
+      return "Medium";
+    }
 
-function renderNews(articles) {
-  const container = document.getElementById("content");
-  container.innerHTML = "";
+    // 見出しを “上質” に統一（あなたの要望）
+    const LABELS = {
+      fact_summary: "事実整理",
+      implications: "意味するもの",
+      outlook: "今後の焦点",
+    };
 
-  articles.forEach(article => {
-    const card = document.createElement("div");
-    card.className = "card";
+    function renderItem(item){
+      const level = normalizeLevel(item.impact_level);
+      const title = escapeHtml(item.title_ja || "");
+      const one = escapeHtml(item.one_sentence || "");
+      const url = item.original_url || item.originalUrl || item.originalUrl || "#";
 
-    card.innerHTML = `
-      <span class="badge ${article.impact_level.toLowerCase()}">
-        ${article.impact_level}
-      </span>
+      const fact = Array.isArray(item.fact_summary) ? item.fact_summary : [];
+      const impl = Array.isArray(item.implications) ? item.implications : [];
+      const outl = Array.isArray(item.outlook) ? item.outlook : [];
 
-      <div class="title">${article.title_ja || article.title}</div>
+      const bullets = (arr)=> arr.slice(0,4).map(x=>`<li>${escapeHtml(x)}</li>`).join("");
 
-      <div class="summary">
-        ${article.one_sentence || article.summary}
-      </div>
+      return `
+        <article class="card">
+          <div class="headrow">
+            <span class="badge" data-level="${level}">${level}</span>
+          </div>
 
-      <div class="section-title">何が起きたか</div>
-      <ul>
-        ${safeArray(article.what_happened).map(i => `<li>${i}</li>`).join("")}
-      </ul>
+          <h2 class="title">${title}</h2>
+          <div class="one">${one}</div>
 
-      <div class="section-title">なぜ重要か</div>
-      <ul>
-        ${safeArray(article.why_important).map(i => `<li>${i}</li>`).join("")}
-      </ul>
+          <section class="section">
+            <h3 class="section-title">${LABELS.fact_summary}</h3>
+            <ul class="bullets">${bullets(fact)}</ul>
+          </section>
 
-      <div class="section-title">戦略的示唆</div>
-      <ul>
-        ${safeArray(article.action_advice).map(i => `<li>${i}</li>`).join("")}
-      </ul>
+          <section class="section">
+            <h3 class="section-title">${LABELS.implications}</h3>
+            <ul class="bullets">${bullets(impl)}</ul>
+          </section>
 
-      <button class="btn" onclick="window.open('${article.original_url}', '_blank')">
-        元記事を読む
-      </button>
-    `;
+          <section class="section">
+            <h3 class="section-title">${LABELS.outlook}</h3>
+            <ul class="bullets">${bullets(outl)}</ul>
+          </section>
 
-    container.appendChild(card);
-  });
-}
+          <div class="actions">
+            <a class="linkbtn" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">元記事を読む</a>
+          </div>
+        </article>
+      `;
+    }
 
-fetchNews();
-</script>
+    function showError(msg){
+      const el = $("#error");
+      el.style.display = "block";
+      el.textContent = msg;
+      setStatus(false, "取得に失敗");
+    }
+    function hideError(){
+      $("#error").style.display = "none";
+      $("#error").textContent = "";
+    }
 
+    function setSkeleton(){
+      $("#cards").innerHTML = `
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      `;
+    }
+
+    // ===== Fetch =====
+    async function fetchBrief({bust=false} = {}){
+      hideError();
+      setStatus(null, "取得中…");
+      setSkeleton();
+
+      const now = new Date();
+      $("#dateLine").textContent = toJapaneseDateLine(now);
+
+      // cache bust（PWA/ServiceWorkerが強いので）
+      const url = new URL(API_PATH, location.origin);
+      if(bust){
+        url.searchParams.set(FORCE_BUST_PARAM, String(Date.now()));
+      }
+
+      try{
+        const res = await fetch(url.toString(), {
+          method: "GET",
+          cache: "no-store",
+          headers: { "Accept": "application/json" }
+        });
+
+        const text = await res.text();
+        if(!res.ok){
+          showError(`API Error: ${res.status} ${res.statusText}\n\n${text.slice(0,1200)}`);
+          return;
+        }
+
+        let data;
+        try{
+          data = JSON.parse(text);
+        }catch(e){
+          showError(`JSON Parse Error\n\n${text.slice(0,1200)}`);
+          return;
+        }
+
+        const items = Array.isArray(data.items) ? data.items : [];
+        if(items.length === 0){
+          showError("No items returned from API.");
+          return;
+        }
+
+        // 3件だけ表示（APIは3件想定）
+        const html = items.slice(0,3).map(renderItem).join("");
+        $("#cards").innerHTML = html;
+
+        setStatus(true, "最新を表示中");
+      }catch(e){
+        showError(`Network Error: ${e?.message || String(e)}\n(Check CORS, network connection, or URL)`);
+      }
+    }
+
+    // ===== PWA Service Worker =====
+    async function registerSW(){
+      if(!("serviceWorker" in navigator)) return;
+      try{
+        // sw.js は同リポジトリ直下に置く想定（なければスキップされます）
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        // 更新があれば即反映させやすく
+        reg.update().catch(()=>{});
+      }catch(e){
+        // SWが無い場合などは無視
+      }
+    }
+
+    // ===== Cache refresh button =====
+    async function hardRefresh(){
+      // SWがいる場合は更新指示 → リロード
+      try{
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for(const r of regs){
+          await r.update().catch(()=>{});
+        }
+      }catch(e){}
+      await fetchBrief({bust:true});
+    }
+
+    // ===== init =====
+    $("#reloadBtn").addEventListener("click", ()=>fetchBrief({bust:true}));
+    $("#clearCacheBtn").addEventListener("click", ()=>hardRefresh());
+
+    registerSW();
+    fetchBrief({bust:false});
+  </script>
 </body>
 </html>
