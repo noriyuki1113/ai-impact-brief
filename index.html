@@ -1,949 +1,950 @@
- 1	<!doctype html>
-     2	<html lang="ja">
-     3	<head>
-     4	  <meta charset="utf-8" />
-     5	  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-     6	  <meta name="theme-color" content="#0d1117" />
-     7	  <meta name="color-scheme" content="dark" />
-     8	  <meta name="description" content="AI Impact Brief — 構造で読む、AI戦略ニュース。冷静分析型AIニュースブリーフ。" />
-     9	
-    10	  <!-- PWA -->
-    11	  <link rel="manifest" href="/manifest.webmanifest" />
-    12	  <link rel="apple-touch-icon" href="/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" />
-    13	
-    14	  <title>AI Impact Brief — 構造で読む、AI戦略ニュース</title>
-    15	
-    16	  <style>
-    17	    /* ===== Variables: Cold Analysis Theme ===== */
-    18	    :root {
-    19	      /* Base Colors - Financial Terminal Aesthetic */
-    20	      --bg-primary: #0d1117;
-    21	      --bg-secondary: #010409;
-    22	      --card-bg: #161b22;
-    23	      --card-hover: #1c2128;
-    24	      
-    25	      /* Text */
-    26	      --text-primary: #e6edf3;
-    27	      --text-secondary: #8b949e;
-    28	      --text-muted: #6e7681;
-    29	      
-    30	      /* Accents - Priority Signals Only */
-    31	      --accent-high: #f85149;
-    32	      --accent-medium: #d29922;
-    33	      --accent-low: #3fb950;
-    34	      
-    35	      /* Borders & Lines */
-    36	      --border-default: #30363d;
-    37	      --border-muted: #21262d;
-    38	      
-    39	      /* Shadows */
-    40	      --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.4);
-    41	      --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.5);
-    42	      
-    43	      /* Layout */
-    44	      --max-width: 1000px;
-    45	      --spacing-xs: 8px;
-    46	      --spacing-sm: 12px;
-    47	      --spacing-md: 16px;
-    48	      --spacing-lg: 24px;
-    49	      --spacing-xl: 32px;
-    50	      
-    51	      /* Typography */
-    52	      --font-size-xs: 11px;
-    53	      --font-size-sm: 13px;
-    54	      --font-size-base: 14px;
-    55	      --font-size-md: 16px;
-    56	      --font-size-lg: 18px;
-    57	      --font-size-xl: 20px;
-    58	      --font-size-2xl: 24px;
-    59	      
-    60	      /* Radius */
-    61	      --radius-sm: 6px;
-    62	      --radius-md: 8px;
-    63	      --radius-lg: 12px;
-    64	    }
-    65	
-    66	    /* ===== Reset & Base ===== */
-    67	    * {
-    68	      box-sizing: border-box;
-    69	      margin: 0;
-    70	      padding: 0;
-    71	    }
-    72	
-    73	    html, body {
-    74	      height: 100%;
-    75	    }
-    76	
-    77	    body {
-    78	      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    79	        "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", 
-    80	        "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    81	      font-size: var(--font-size-base);
-    82	      line-height: 1.6;
-    83	      color: var(--text-primary);
-    84	      background: var(--bg-primary);
-    85	      -webkit-font-smoothing: antialiased;
-    86	      -moz-osx-font-smoothing: grayscale;
-    87	    }
-    88	
-    89	    /* ===== Container ===== */
-    90	    .container {
-    91	      max-width: var(--max-width);
-    92	      margin: 0 auto;
-    93	      padding: var(--spacing-lg) var(--spacing-md);
-    94	    }
-    95	
-    96	    /* ===== Header ===== */
-    97	    .header {
-    98	      display: flex;
-    99	      align-items: flex-start;
-   100	      justify-content: space-between;
-   101	      gap: var(--spacing-md);
-   102	      padding-bottom: var(--spacing-lg);
-   103	      border-bottom: 1px solid var(--border-muted);
-   104	      margin-bottom: var(--spacing-lg);
-   105	    }
-   106	
-   107	    .brand {
-   108	      flex: 1;
-   109	    }
-   110	
-   111	    .brand-title {
-   112	      display: flex;
-   113	      align-items: center;
-   114	      gap: var(--spacing-sm);
-   115	      margin-bottom: var(--spacing-xs);
-   116	    }
-   117	
-   118	    .logo {
-   119	      width: 32px;
-   120	      height: 32px;
-   121	      border-radius: var(--radius-sm);
-   122	      background: var(--card-bg);
-   123	      border: 1px solid var(--border-default);
-   124	      overflow: hidden;
-   125	      display: flex;
-   126	      align-items: center;
-   127	      justify-content: center;
-   128	      flex-shrink: 0;
-   129	    }
-   130	
-   131	    .logo img {
-   132	      width: 100%;
-   133	      height: 100%;
-   134	      object-fit: cover;
-   135	      display: block;
-   136	    }
-   137	
-   138	    .brand h1 {
-   139	      font-size: var(--font-size-xl);
-   140	      font-weight: 600;
-   141	      letter-spacing: -0.02em;
-   142	      color: var(--text-primary);
-   143	    }
-   144	
-   145	    .brand-tagline {
-   146	      font-size: var(--font-size-sm);
-   147	      color: var(--text-secondary);
-   148	      letter-spacing: 0.01em;
-   149	      margin-top: 2px;
-   150	    }
-   151	
-   152	    .header-meta {
-   153	      display: flex;
-   154	      flex-direction: column;
-   155	      align-items: flex-end;
-   156	      gap: var(--spacing-xs);
-   157	    }
-   158	
-   159	    .date-display {
-   160	      font-size: var(--font-size-sm);
-   161	      color: var(--text-secondary);
-   162	      letter-spacing: 0.02em;
-   163	    }
-   164	
-   165	    /* ===== Toolbar ===== */
-   166	    .toolbar {
-   167	      display: flex;
-   168	      align-items: center;
-   169	      gap: var(--spacing-sm);
-   170	      margin-bottom: var(--spacing-lg);
-   171	      padding: var(--spacing-sm) 0;
-   172	    }
-   173	
-   174	    .filter-group {
-   175	      display: flex;
-   176	      gap: var(--spacing-xs);
-   177	      flex: 1;
-   178	    }
-   179	
-   180	    .filter-btn {
-   181	      appearance: none;
-   182	      border: 1px solid var(--border-default);
-   183	      background: var(--card-bg);
-   184	      color: var(--text-secondary);
-   185	      padding: 6px 12px;
-   186	      border-radius: var(--radius-sm);
-   187	      font-size: var(--font-size-xs);
-   188	      font-weight: 600;
-   189	      letter-spacing: 0.05em;
-   190	      text-transform: uppercase;
-   191	      cursor: pointer;
-   192	      transition: all 0.15s ease;
-   193	    }
-   194	
-   195	    .filter-btn:hover {
-   196	      background: var(--card-hover);
-   197	      border-color: var(--border-default);
-   198	    }
-   199	
-   200	    .filter-btn.active {
-   201	      background: var(--text-primary);
-   202	      color: var(--bg-primary);
-   203	      border-color: var(--text-primary);
-   204	    }
-   205	
-   206	    .action-btn {
-   207	      appearance: none;
-   208	      border: 1px solid var(--border-default);
-   209	      background: var(--card-bg);
-   210	      color: var(--text-primary);
-   211	      padding: 6px 12px;
-   212	      border-radius: var(--radius-sm);
-   213	      font-size: var(--font-size-sm);
-   214	      font-weight: 500;
-   215	      cursor: pointer;
-   216	      display: inline-flex;
-   217	      align-items: center;
-   218	      gap: 6px;
-   219	      transition: all 0.15s ease;
-   220	    }
-   221	
-   222	    .action-btn:hover {
-   223	      background: var(--card-hover);
-   224	    }
-   225	
-   226	    .action-btn:active {
-   227	      transform: translateY(1px);
-   228	    }
-   229	
-   230	    .status-indicator {
-   231	      margin-left: auto;
-   232	      display: flex;
-   233	      align-items: center;
-   234	      gap: var(--spacing-xs);
-   235	      font-size: var(--font-size-xs);
-   236	      color: var(--text-muted);
-   237	    }
-   238	
-   239	    .status-dot {
-   240	      width: 6px;
-   241	      height: 6px;
-   242	      border-radius: 50%;
-   243	      background: var(--text-muted);
-   244	    }
-   245	
-   246	    .status-dot.loading {
-   247	      background: var(--accent-medium);
-   248	      animation: pulse 1.5s ease-in-out infinite;
-   249	    }
-   250	
-   251	    .status-dot.success {
-   252	      background: var(--accent-low);
-   253	    }
-   254	
-   255	    .status-dot.error {
-   256	      background: var(--accent-high);
-   257	    }
-   258	
-   259	    @keyframes pulse {
-   260	      0%, 100% { opacity: 1; }
-   261	      50% { opacity: 0.5; }
-   262	    }
-   263	
-   264	    /* ===== Cards Container ===== */
-   265	    .cards {
-   266	      display: flex;
-   267	      flex-direction: column;
-   268	      gap: var(--spacing-md);
-   269	    }
-   270	
-   271	    /* ===== Brief Card ===== */
-   272	    .brief-card {
-   273	      position: relative;
-   274	      background: var(--card-bg);
-   275	      border: 1px solid var(--border-default);
-   276	      border-radius: var(--radius-md);
-   277	      overflow: hidden;
-   278	      box-shadow: var(--shadow-card);
-   279	      transition: all 0.2s ease;
-   280	    }
-   281	
-   282	    .brief-card:hover {
-   283	      box-shadow: var(--shadow-card-hover);
-   284	      border-color: var(--border-muted);
-   285	    }
-   286	
-   287	    /* Priority Accent Bar */
-   288	    .brief-card::before {
-   289	      content: '';
-   290	      position: absolute;
-   291	      left: 0;
-   292	      top: 0;
-   293	      bottom: 0;
-   294	      width: 4px;
-   295	      background: var(--text-secondary);
-   296	    }
-   297	
-   298	    .brief-card.high::before {
-   299	      background: var(--accent-high);
-   300	    }
-   301	
-   302	    .brief-card.medium::before {
-   303	      background: var(--accent-medium);
-   304	    }
-   305	
-   306	    .brief-card.low::before {
-   307	      background: var(--accent-low);
-   308	    }
-   309	
-   310	    /* Card Content */
-   311	    .card-content {
-   312	      padding: var(--spacing-lg);
-   313	      padding-left: calc(var(--spacing-lg) + 8px);
-   314	    }
-   315	
-   316	    .card-header {
-   317	      display: flex;
-   318	      align-items: center;
-   319	      justify-content: space-between;
-   320	      margin-bottom: var(--spacing-md);
-   321	    }
-   322	
-   323	    .priority-badge {
-   324	      display: inline-flex;
-   325	      align-items: center;
-   326	      padding: 4px 10px;
-   327	      border-radius: var(--radius-sm);
-   328	      font-size: var(--font-size-xs);
-   329	      font-weight: 700;
-   330	      letter-spacing: 0.05em;
-   331	      text-transform: uppercase;
-   332	      background: var(--border-default);
-   333	      color: var(--text-secondary);
-   334	    }
-   335	
-   336	    .priority-badge.high {
-   337	      background: rgba(248, 81, 73, 0.15);
-   338	      color: var(--accent-high);
-   339	      border: 1px solid rgba(248, 81, 73, 0.3);
-   340	    }
-   341	
-   342	    .priority-badge.medium {
-   343	      background: rgba(210, 153, 34, 0.15);
-   344	      color: var(--accent-medium);
-   345	      border: 1px solid rgba(210, 153, 34, 0.3);
-   346	    }
-   347	
-   348	    .priority-badge.low {
-   349	      background: rgba(63, 185, 80, 0.15);
-   350	      color: var(--accent-low);
-   351	      border: 1px solid rgba(63, 185, 80, 0.3);
-   352	    }
-   353	
-   354	    .card-title {
-   355	      font-size: var(--font-size-lg);
-   356	      font-weight: 600;
-   357	      line-height: 1.4;
-   358	      letter-spacing: -0.01em;
-   359	      color: var(--text-primary);
-   360	      margin-bottom: var(--spacing-sm);
-   361	    }
-   362	
-   363	    .card-summary {
-   364	      font-size: var(--font-size-sm);
-   365	      line-height: 1.6;
-   366	      color: var(--text-secondary);
-   367	      padding: var(--spacing-sm);
-   368	      background: rgba(255, 255, 255, 0.03);
-   369	      border-left: 2px solid var(--border-default);
-   370	      border-radius: var(--radius-sm);
-   371	      margin-bottom: var(--spacing-md);
-   372	    }
-   373	
-   374	    /* Card Sections */
-   375	    .card-section {
-   376	      margin-top: var(--spacing-md);
-   377	    }
-   378	
-   379	    .section-title {
-   380	      font-size: var(--font-size-sm);
-   381	      font-weight: 700;
-   382	      letter-spacing: 0.03em;
-   383	      color: var(--text-primary);
-   384	      margin-bottom: var(--spacing-sm);
-   385	      display: flex;
-   386	      align-items: center;
-   387	      gap: var(--spacing-xs);
-   388	    }
-   389	
-   390	    .section-title::before {
-   391	      content: '';
-   392	      width: 3px;
-   393	      height: 14px;
-   394	      background: var(--text-secondary);
-   395	      border-radius: 2px;
-   396	    }
-   397	
-   398	    .brief-card.high .section-title::before {
-   399	      background: var(--accent-high);
-   400	    }
-   401	
-   402	    .brief-card.medium .section-title::before {
-   403	      background: var(--accent-medium);
-   404	    }
-   405	
-   406	    .brief-card.low .section-title::before {
-   407	      background: var(--accent-low);
-   408	    }
-   409	
-   410	    .bullet-list {
-   411	      list-style: none;
-   412	      padding: 0;
-   413	      margin: 0;
-   414	    }
-   415	
-   416	    .bullet-list li {
-   417	      position: relative;
-   418	      padding-left: 16px;
-   419	      margin-bottom: var(--spacing-xs);
-   420	      font-size: var(--font-size-sm);
-   421	      line-height: 1.6;
-   422	      color: var(--text-secondary);
-   423	    }
-   424	
-   425	    .bullet-list li::before {
-   426	      content: '•';
-   427	      position: absolute;
-   428	      left: 0;
-   429	      color: var(--text-muted);
-   430	    }
-   431	
-   432	    /* Card Footer */
-   433	    .card-footer {
-   434	      display: flex;
-   435	      align-items: center;
-   436	      justify-content: space-between;
-   437	      margin-top: var(--spacing-lg);
-   438	      padding-top: var(--spacing-md);
-   439	      border-top: 1px solid var(--border-muted);
-   440	    }
-   441	
-   442	    .impact-level {
-   443	      font-size: var(--font-size-xs);
-   444	      color: var(--text-muted);
-   445	    }
-   446	
-   447	    .impact-value {
-   448	      font-weight: 600;
-   449	      margin-left: 4px;
-   450	    }
-   451	
-   452	    .brief-card.high .impact-value {
-   453	      color: var(--accent-high);
-   454	    }
-   455	
-   456	    .brief-card.medium .impact-value {
-   457	      color: var(--accent-medium);
-   458	    }
-   459	
-   460	    .brief-card.low .impact-value {
-   461	      color: var(--accent-low);
-   462	    }
-   463	
-   464	    .source-link {
-   465	      display: inline-flex;
-   466	      align-items: center;
-   467	      gap: 4px;
-   468	      font-size: var(--font-size-xs);
-   469	      color: var(--text-secondary);
-   470	      text-decoration: none;
-   471	      transition: color 0.15s ease;
-   472	    }
-   473	
-   474	    .source-link:hover {
-   475	      color: var(--text-primary);
-   476	    }
-   477	
-   478	    .source-link::after {
-   479	      content: '↗';
-   480	      font-size: 10px;
-   481	    }
-   482	
-   483	    /* ===== Loading Skeleton ===== */
-   484	    .skeleton-card {
-   485	      background: var(--card-bg);
-   486	      border: 1px solid var(--border-default);
-   487	      border-radius: var(--radius-md);
-   488	      padding: var(--spacing-lg);
-   489	      overflow: hidden;
-   490	      position: relative;
-   491	    }
-   492	
-   493	    .skeleton-card::after {
-   494	      content: '';
-   495	      position: absolute;
-   496	      inset: 0;
-   497	      background: linear-gradient(
-   498	        90deg,
-   499	        transparent,
-   500	        rgba(255, 255, 255, 0.03),
-   501	        transparent
-   502	      );
-   503	      transform: translateX(-100%);
-   504	      animation: shimmer 1.5s infinite;
-   505	    }
-   506	
-   507	    @keyframes shimmer {
-   508	      100% { transform: translateX(100%); }
-   509	    }
-   510	
-   511	    .skeleton-line {
-   512	      height: 12px;
-   513	      background: var(--border-default);
-   514	      border-radius: var(--radius-sm);
-   515	      margin-bottom: var(--spacing-sm);
-   516	    }
-   517	
-   518	    .skeleton-line.title {
-   519	      height: 20px;
-   520	      width: 70%;
-   521	    }
-   522	
-   523	    .skeleton-line.short {
-   524	      width: 40%;
-   525	    }
-   526	
-   527	    /* ===== Error Message ===== */
-   528	    .error-box {
-   529	      background: rgba(248, 81, 73, 0.1);
-   530	      border: 1px solid rgba(248, 81, 73, 0.3);
-   531	      border-radius: var(--radius-md);
-   532	      padding: var(--spacing-md);
-   533	      margin-bottom: var(--spacing-lg);
-   534	      color: var(--text-primary);
-   535	      font-size: var(--font-size-sm);
-   536	      line-height: 1.6;
-   537	      white-space: pre-wrap;
-   538	      display: none;
-   539	    }
-   540	
-   541	    .error-box.show {
-   542	      display: block;
-   543	    }
-   544	
-   545	    /* ===== Footer ===== */
-   546	    .footer {
-   547	      margin-top: var(--spacing-xl);
-   548	      padding-top: var(--spacing-lg);
-   549	      border-top: 1px solid var(--border-muted);
-   550	      text-align: center;
-   551	      font-size: var(--font-size-xs);
-   552	      color: var(--text-muted);
-   553	      letter-spacing: 0.02em;
-   554	    }
-   555	
-   556	    .footer-links {
-   557	      display: flex;
-   558	      justify-content: center;
-   559	      gap: var(--spacing-md);
-   560	      margin-top: var(--spacing-sm);
-   561	    }
-   562	
-   563	    .footer-link {
-   564	      color: var(--text-muted);
-   565	      text-decoration: none;
-   566	      transition: color 0.15s ease;
-   567	    }
-   568	
-   569	    .footer-link:hover {
-   570	      color: var(--text-secondary);
-   571	    }
-   572	
-   573	    /* ===== Responsive ===== */
-   574	    @media (max-width: 768px) {
-   575	      .container {
-   576	        padding: var(--spacing-md) var(--spacing-sm);
-   577	      }
-   578	
-   579	      .header {
-   580	        flex-direction: column;
-   581	      }
-   582	
-   583	      .header-meta {
-   584	        align-items: flex-start;
-   585	        width: 100%;
-   586	      }
-   587	
-   588	      .toolbar {
-   589	        flex-wrap: wrap;
-   590	      }
-   591	
-   592	      .filter-group {
-   593	        width: 100%;
-   594	      }
-   595	
-   596	      .status-indicator {
-   597	        margin-left: 0;
-   598	        width: 100%;
-   599	      }
-   600	
-   601	      .card-content {
-   602	        padding: var(--spacing-md);
-   603	        padding-left: calc(var(--spacing-md) + 8px);
-   604	      }
-   605	
-   606	      .card-title {
-   607	        font-size: var(--font-size-md);
-   608	      }
-   609	    }
-   610	  </style>
-   611	</head>
-   612	
-   613	<body>
-   614	  <div class="container">
-   615	    <!-- Header -->
-   616	    <header class="header">
-   617	      <div class="brand">
-   618	        <div class="brand-title">
-   619	          <div class="logo" aria-label="AI Impact Brief Logo">
-   620	            <img src="/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" alt="AI Impact Brief" />
-   621	          </div>
-   622	          <h1>AI Impact Brief</h1>
-   623	        </div>
-   624	        <p class="brand-tagline">構造で読む、AI戦略ニュース</p>
-   625	      </div>
-   626	      <div class="header-meta">
-   627	        <time class="date-display" id="dateDisplay">—</time>
-   628	      </div>
-   629	    </header>
-   630	
-   631	    <!-- Toolbar -->
-   632	    <div class="toolbar">
-   633	      <div class="filter-group">
-   634	        <button class="filter-btn active" data-filter="all">All</button>
-   635	        <button class="filter-btn" data-filter="high">High</button>
-   636	        <button class="filter-btn" data-filter="medium">Medium</button>
-   637	        <button class="filter-btn" data-filter="low">Low</button>
-   638	      </div>
-   639	      <button class="action-btn" id="refreshBtn">
-   640	        <span>↻</span>
-   641	        <span>更新</span>
-   642	      </button>
-   643	      <div class="status-indicator">
-   644	        <span class="status-dot" id="statusDot"></span>
-   645	        <span id="statusText">準備中</span>
-   646	      </div>
-   647	    </div>
-   648	
-   649	    <!-- Error Box -->
-   650	    <div class="error-box" id="errorBox"></div>
-   651	
-   652	    <!-- Main Content -->
-   653	    <main class="cards" id="cardsContainer">
-   654	      <!-- Loading skeletons (will be replaced by actual content) -->
-   655	      <div class="skeleton-card">
-   656	        <div class="skeleton-line title"></div>
-   657	        <div class="skeleton-line"></div>
-   658	        <div class="skeleton-line"></div>
-   659	        <div class="skeleton-line short"></div>
-   660	      </div>
-   661	      <div class="skeleton-card">
-   662	        <div class="skeleton-line title"></div>
-   663	        <div class="skeleton-line"></div>
-   664	        <div class="skeleton-line"></div>
-   665	        <div class="skeleton-line short"></div>
-   666	      </div>
-   667	      <div class="skeleton-card">
-   668	        <div class="skeleton-line title"></div>
-   669	        <div class="skeleton-line"></div>
-   670	        <div class="skeleton-line"></div>
-   671	        <div class="skeleton-line short"></div>
-   672	      </div>
-   673	    </main>
-   674	
-   675	    <!-- Footer -->
-   676	    <footer class="footer">
-   677	      <p>Powered by The Guardian API × OpenAI</p>
-   678	      <div class="footer-links">
-   679	        <a href="#" class="footer-link">About</a>
-   680	        <a href="#" class="footer-link">Privacy</a>
-   681	        <a href="#" class="footer-link">API Status</a>
-   682	      </div>
-   683	    </footer>
-   684	  </div>
-   685	
-   686	  <script>
-   687	    // ===== Configuration =====
-   688	    const API_PATH = "/api/today";
-   689	    const CACHE_BUST_PARAM = "v";
-   690	
-   691	    // ===== Utilities =====
-   692	    const $ = (selector) => document.querySelector(selector);
-   693	    const $$ = (selector) => document.querySelectorAll(selector);
-   694	
-   695	    function escapeHtml(str) {
-   696	      return String(str)
-   697	        .replace(/&/g, "&amp;")
-   698	        .replace(/</g, "&lt;")
-   699	        .replace(/>/g, "&gt;")
-   700	        .replace(/"/g, "&quot;")
-   701	        .replace(/'/g, "&#039;");
-   702	    }
-   703	
-   704	    function normalizeLevel(level) {
-   705	      const s = String(level || "").toLowerCase();
-   706	      if (s.includes("high")) return "high";
-   707	      if (s.includes("medium")) return "medium";
-   708	      if (s.includes("low")) return "low";
-   709	      return "medium";
-   710	    }
-   711	
-   712	    function formatDate(date) {
-   713	      const y = date.getFullYear();
-   714	      const m = date.getMonth() + 1;
-   715	      const d = date.getDate();
-   716	      const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-   717	      const wd = weekdays[date.getDay()];
-   718	      return `${y}年${m}月${d}日（${wd}）`;
-   719	    }
-   720	
-   721	    // ===== Status Management =====
-   722	    function setStatus(state, text) {
-   723	      const dot = $("#statusDot");
-   724	      const textEl = $("#statusText");
-   725	      
-   726	      dot.classList.remove("loading", "success", "error");
-   727	      if (state === "loading") dot.classList.add("loading");
-   728	      if (state === "success") dot.classList.add("success");
-   729	      if (state === "error") dot.classList.add("error");
-   730	      
-   731	      textEl.textContent = text;
-   732	    }
-   733	
-   734	    function showError(message) {
-   735	      const errorBox = $("#errorBox");
-   736	      errorBox.textContent = message;
-   737	      errorBox.classList.add("show");
-   738	      setStatus("error", "取得に失敗");
-   739	    }
-   740	
-   741	    function hideError() {
-   742	      const errorBox = $("#errorBox");
-   743	      errorBox.textContent = "";
-   744	      errorBox.classList.remove("show");
-   745	    }
-   746	
-   747	    // ===== Render Functions =====
-   748	    function renderBulletList(items) {
-   749	      if (!Array.isArray(items) || items.length === 0) {
-   750	        return '<ul class="bullet-list"><li>情報なし</li></ul>';
-   751	      }
-   752	      
-   753	      const bullets = items
-   754	        .slice(0, 4)
-   755	        .map(item => `<li>${escapeHtml(item)}</li>`)
-   756	        .join("");
-   757	      
-   758	      return `<ul class="bullet-list">${bullets}</ul>`;
-   759	    }
-   760	
-   761	    function renderBriefCard(item) {
-   762	      const level = normalizeLevel(item.impact_level);
-   763	      const title = escapeHtml(item.title_ja || "タイトルなし");
-   764	      const summary = escapeHtml(item.one_sentence || "");
-   765	      const url = item.original_url || item.originalUrl || "#";
-   766	      
-   767	      const levelText = {
-   768	        high: "高",
-   769	        medium: "中",
-   770	        low: "低"
-   771	      }[level] || "中";
-   772	
-   773	      return `
-   774	        <article class="brief-card ${level}" data-level="${level}">
-   775	          <div class="card-content">
-   776	            <div class="card-header">
-   777	              <span class="priority-badge ${level}">${level}</span>
-   778	            </div>
-   779	            
-   780	            <h2 class="card-title">${title}</h2>
-   781	            
-   782	            ${summary ? `<div class="card-summary">${summary}</div>` : ''}
-   783	            
-   784	            <div class="card-section">
-   785	              <h3 class="section-title">事実の要約</h3>
-   786	              ${renderBulletList(item.fact_summary)}
-   787	            </div>
-   788	            
-   789	            <div class="card-section">
-   790	              <h3 class="section-title">市場・企業への示唆</h3>
-   791	              ${renderBulletList(item.implications)}
-   792	            </div>
-   793	            
-   794	            <div class="card-section">
-   795	              <h3 class="section-title">今後の見通し</h3>
-   796	              ${renderBulletList(item.outlook)}
-   797	            </div>
-   798	            
-   799	            <div class="card-footer">
-   800	              <div class="impact-level">
-   801	                影響度評価:<span class="impact-value">${levelText}</span>
-   802	              </div>
-   803	              <a href="${escapeHtml(url)}" class="source-link" target="_blank" rel="noopener noreferrer">
-   804	                The Guardian
-   805	              </a>
-   806	            </div>
-   807	          </div>
-   808	        </article>
-   809	      `;
-   810	    }
-   811	
-   812	    function renderSkeletons() {
-   813	      return `
-   814	        <div class="skeleton-card">
-   815	          <div class="skeleton-line title"></div>
-   816	          <div class="skeleton-line"></div>
-   817	          <div class="skeleton-line"></div>
-   818	          <div class="skeleton-line short"></div>
-   819	        </div>
-   820	        <div class="skeleton-card">
-   821	          <div class="skeleton-line title"></div>
-   822	          <div class="skeleton-line"></div>
-   823	          <div class="skeleton-line"></div>
-   824	          <div class="skeleton-line short"></div>
-   825	        </div>
-   826	        <div class="skeleton-card">
-   827	          <div class="skeleton-line title"></div>
-   828	          <div class="skeleton-line"></div>
-   829	          <div class="skeleton-line"></div>
-   830	          <div class="skeleton-line short"></div>
-   831	        </div>
-   832	      `;
-   833	    }
-   834	
-   835	    // ===== Filtering =====
-   836	    function applyFilter(filter) {
-   837	      const cards = $$(".brief-card");
-   838	      
-   839	      cards.forEach(card => {
-   840	        if (filter === "all" || card.dataset.level === filter) {
-   841	          card.style.display = "block";
-   842	        } else {
-   843	          card.style.display = "none";
-   844	        }
-   845	      });
-   846	
-   847	      // Update active button
-   848	      $$(".filter-btn").forEach(btn => {
-   849	        btn.classList.toggle("active", btn.dataset.filter === filter);
-   850	      });
-   851	    }
-   852	
-   853	    // ===== Fetch Brief =====
-   854	    async function fetchBrief({ cacheBust = false } = {}) {
-   855	      hideError();
-   856	      setStatus("loading", "取得中…");
-   857	      
-   858	      const container = $("#cardsContainer");
-   859	      container.innerHTML = renderSkeletons();
-   860	      
-   861	      // Update date
-   862	      $("#dateDisplay").textContent = formatDate(new Date());
-   863	      
-   864	      // Build URL with optional cache busting
-   865	      const url = new URL(API_PATH, location.origin);
-   866	      if (cacheBust) {
-   867	        url.searchParams.set(CACHE_BUST_PARAM, String(Date.now()));
-   868	      }
-   869	      
-   870	      try {
-   871	        const response = await fetch(url.toString(), {
-   872	          method: "GET",
-   873	          cache: "no-store",
-   874	          headers: { "Accept": "application/json" }
-   875	        });
-   876	        
-   877	        const text = await response.text();
-   878	        
-   879	        if (!response.ok) {
-   880	          showError(`API Error: ${response.status} ${response.statusText}\n\n${text.slice(0, 1200)}`);
-   881	          return;
-   882	        }
-   883	        
-   884	        let data;
-   885	        try {
-   886	          data = JSON.parse(text);
-   887	        } catch (e) {
-   888	          showError(`JSON Parse Error\n\n${text.slice(0, 1200)}`);
-   889	          return;
-   890	        }
-   891	        
-   892	        const items = Array.isArray(data.items) ? data.items : [];
-   893	        
-   894	        if (items.length === 0) {
-   895	          showError("APIから記事が返されませんでした。");
-   896	          return;
-   897	        }
-   898	        
-   899	        // Render cards
-   900	        const html = items.slice(0, 3).map(renderBriefCard).join("");
-   901	        container.innerHTML = html;
-   902	        
-   903	        setStatus("success", "最新を表示中");
-   904	        
-   905	      } catch (error) {
-   906	        showError(`Network Error: ${error?.message || String(error)}\n\nネットワーク接続を確認してください。`);
-   907	      }
-   908	    }
-   909	
-   910	    // ===== PWA Service Worker =====
-   911	    async function registerServiceWorker() {
-   912	      if (!("serviceWorker" in navigator)) return;
-   913	      
-   914	      try {
-   915	        const registration = await navigator.serviceWorker.register("/sw.js");
-   916	        registration.update().catch(() => {});
-   917	      } catch (error) {
-   918	        // Service worker registration failed, continue without it
-   919	      }
-   920	    }
-   921	
-   922	    // ===== Event Listeners =====
-   923	    function initEventListeners() {
-   924	      // Refresh button
-   925	      $("#refreshBtn").addEventListener("click", () => {
-   926	        fetchBrief({ cacheBust: true });
-   927	      });
-   928	      
-   929	      // Filter buttons
-   930	      $$(".filter-btn").forEach(btn => {
-   931	        btn.addEventListener("click", () => {
-   932	          const filter = btn.dataset.filter;
-   933	          applyFilter(filter);
-   934	        });
-   935	      });
-   936	    }
-   937	
-   938	    // ===== Initialization =====
-   939	    function init() {
-   940	      registerServiceWorker();
-   941	      initEventListeners();
-   942	      fetchBrief({ cacheBust: false });
-   943	    }
-   944	
-   945	    // Start the app
-   946	    init();
-   947	  </script>
-   948	</body>
-   949	</html>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1117" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="AI Impact Brief — 構造で読む、AI戦略ニュース。冷静分析型AIニュースブリーフ。" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" />
+
+
+  <title>AI Impact Brief — 構造で読む、AI戦略ニュース</title>
+
+  <style>
+    /* ===== Variables: Cold Analysis Theme ===== */
+    :root {
+      /* Base Colors - Financial Terminal Aesthetic */
+      --bg-primary: #0d1117;
+      --bg-secondary: #010409;
+      --card-bg: #161b22;
+      --card-hover: #1c2128;
+      
+      /* Text */
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      
+      /* Accents - Priority Signals Only */
+      --accent-high: #f85149;
+      --accent-medium: #d29922;
+      --accent-low: #3fb950;
+      
+      /* Borders & Lines */
+      --border-default: #30363d;
+      --border-muted: #21262d;
+      
+      /* Shadows */
+      --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.4);
+      --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.5);
+      
+      /* Layout */
+      --max-width: 1000px;
+      --spacing-xs: 8px;
+      --spacing-sm: 12px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      
+      /* Typography */
+      --font-size-xs: 11px;
+      --font-size-sm: 13px;
+      --font-size-base: 14px;
+      --font-size-md: 16px;
+      --font-size-lg: 18px;
+      --font-size-xl: 20px;
+      --font-size-2xl: 24px;
+      
+      /* Radius */
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    /* ===== Reset & Base ===== */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+        "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", 
+        "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: var(--font-size-base);
+      line-height: 1.6;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ===== Container ===== */
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: var(--spacing-lg) var(--spacing-md);
+    }
+
+    /* ===== Header ===== */
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--spacing-md);
+      padding-bottom: var(--spacing-lg);
+      border-bottom: 1px solid var(--border-muted);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .brand {
+      flex: 1;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      background: var(--card-bg);
+      border: 1px solid var(--border-default);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .brand h1 {
+      font-size: var(--font-size-xl);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .brand-tagline {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      letter-spacing: 0.01em;
+      margin-top: 2px;
+    }
+
+    .header-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: var(--spacing-xs);
+    }
+
+    .date-display {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      letter-spacing: 0.02em;
+    }
+
+    /* ===== Toolbar ===== */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-lg);
+      padding: var(--spacing-sm) 0;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: var(--spacing-xs);
+      flex: 1;
+    }
+
+    .filter-btn {
+      appearance: none;
+      border: 1px solid var(--border-default);
+      background: var(--card-bg);
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .filter-btn:hover {
+      background: var(--card-hover);
+      border-color: var(--border-default);
+    }
+
+    .filter-btn.active {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      border-color: var(--text-primary);
+    }
+
+    .action-btn {
+      appearance: none;
+      border: 1px solid var(--border-default);
+      background: var(--card-bg);
+      color: var(--text-primary);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .action-btn:hover {
+      background: var(--card-hover);
+    }
+
+    .action-btn:active {
+      transform: translateY(1px);
+    }
+
+    .status-indicator {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      font-size: var(--font-size-xs);
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .status-dot.loading {
+      background: var(--accent-medium);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .status-dot.success {
+      background: var(--accent-low);
+    }
+
+    .status-dot.error {
+      background: var(--accent-high);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ===== Cards Container ===== */
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+
+    /* ===== Brief Card ===== */
+    .brief-card {
+      position: relative;
+      background: var(--card-bg);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: all 0.2s ease;
+    }
+
+    .brief-card:hover {
+      box-shadow: var(--shadow-card-hover);
+      border-color: var(--border-muted);
+    }
+
+    /* Priority Accent Bar */
+    .brief-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--text-secondary);
+    }
+
+    .brief-card.high::before {
+      background: var(--accent-high);
+    }
+
+    .brief-card.medium::before {
+      background: var(--accent-medium);
+    }
+
+    .brief-card.low::before {
+      background: var(--accent-low);
+    }
+
+    /* Card Content */
+    .card-content {
+      padding: var(--spacing-lg);
+      padding-left: calc(var(--spacing-lg) + 8px);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .priority-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: var(--border-default);
+      color: var(--text-secondary);
+    }
+
+    .priority-badge.high {
+      background: rgba(248, 81, 73, 0.15);
+      color: var(--accent-high);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .priority-badge.medium {
+      background: rgba(210, 153, 34, 0.15);
+      color: var(--accent-medium);
+      border: 1px solid rgba(210, 153, 34, 0.3);
+    }
+
+    .priority-badge.low {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-low);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+
+    .card-title {
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      line-height: 1.4;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .card-summary {
+      font-size: var(--font-size-sm);
+      line-height: 1.6;
+      color: var(--text-secondary);
+      padding: var(--spacing-sm);
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 2px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--spacing-md);
+    }
+
+    /* Card Sections */
+    .card-section {
+      margin-top: var(--spacing-md);
+    }
+
+    .section-title {
+      font-size: var(--font-size-sm);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: var(--text-primary);
+      margin-bottom: var(--spacing-sm);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+    }
+
+    .section-title::before {
+      content: '';
+      width: 3px;
+      height: 14px;
+      background: var(--text-secondary);
+      border-radius: 2px;
+    }
+
+    .brief-card.high .section-title::before {
+      background: var(--accent-high);
+    }
+
+    .brief-card.medium .section-title::before {
+      background: var(--accent-medium);
+    }
+
+    .brief-card.low .section-title::before {
+      background: var(--accent-low);
+    }
+
+    .bullet-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .bullet-list li {
+      position: relative;
+      padding-left: 16px;
+      margin-bottom: var(--spacing-xs);
+      font-size: var(--font-size-sm);
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .bullet-list li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--text-muted);
+    }
+
+    /* Card Footer */
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: var(--spacing-lg);
+      padding-top: var(--spacing-md);
+      border-top: 1px solid var(--border-muted);
+    }
+
+    .impact-level {
+      font-size: var(--font-size-xs);
+      color: var(--text-muted);
+    }
+
+    .impact-value {
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    .brief-card.high .impact-value {
+      color: var(--accent-high);
+    }
+
+    .brief-card.medium .impact-value {
+      color: var(--accent-medium);
+    }
+
+    .brief-card.low .impact-value {
+      color: var(--accent-low);
+    }
+
+    .source-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .source-link:hover {
+      color: var(--text-primary);
+    }
+
+    .source-link::after {
+      content: '↗';
+      font-size: 10px;
+    }
+
+    /* ===== Loading Skeleton ===== */
+    .skeleton-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-lg);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .skeleton-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.03),
+        transparent
+      );
+      transform: translateX(-100%);
+      animation: shimmer 1.5s infinite;
+    }
+
+    @keyframes shimmer {
+      100% { transform: translateX(100%); }
+    }
+
+    .skeleton-line {
+      height: 12px;
+      background: var(--border-default);
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .skeleton-line.title {
+      height: 20px;
+      width: 70%;
+    }
+
+    .skeleton-line.short {
+      width: 40%;
+    }
+
+    /* ===== Error Message ===== */
+    .error-box {
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-md);
+      margin-bottom: var(--spacing-lg);
+      color: var(--text-primary);
+      font-size: var(--font-size-sm);
+      line-height: 1.6;
+      white-space: pre-wrap;
+      display: none;
+    }
+
+    .error-box.show {
+      display: block;
+    }
+
+    /* ===== Footer ===== */
+    .footer {
+      margin-top: var(--spacing-xl);
+      padding-top: var(--spacing-lg);
+      border-top: 1px solid var(--border-muted);
+      text-align: center;
+      font-size: var(--font-size-xs);
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: var(--spacing-md);
+      margin-top: var(--spacing-sm);
+    }
+
+    .footer-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .footer-link:hover {
+      color: var(--text-secondary);
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 768px) {
+      .container {
+        padding: var(--spacing-md) var(--spacing-sm);
+      }
+
+      .header {
+        flex-direction: column;
+      }
+
+      .header-meta {
+        align-items: flex-start;
+        width: 100%;
+      }
+
+      .toolbar {
+        flex-wrap: wrap;
+      }
+
+      .filter-group {
+        width: 100%;
+      }
+
+      .status-indicator {
+        margin-left: 0;
+        width: 100%;
+      }
+
+      .card-content {
+        padding: var(--spacing-md);
+        padding-left: calc(var(--spacing-md) + 8px);
+      }
+
+      .card-title {
+        font-size: var(--font-size-md);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-title">
+          <div class="logo" aria-label="AI Impact Brief Logo">
+            <img src="/6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" alt="AI Impact Brief" />
+          </div>
+          <h1>AI Impact Brief</h1>
+        </div>
+        <p class="brand-tagline">構造で読む、AI戦略ニュース</p>
+      </div>
+      <div class="header-meta">
+        <time class="date-display" id="dateDisplay">—</time>
+      </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="high">High</button>
+        <button class="filter-btn" data-filter="medium">Medium</button>
+        <button class="filter-btn" data-filter="low">Low</button>
+      </div>
+      <button class="action-btn" id="refreshBtn">
+        <span>↻</span>
+        <span>更新</span>
+      </button>
+      <div class="status-indicator">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">準備中</span>
+      </div>
+    </div>
+
+    <!-- Error Box -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- Main Content -->
+    <main class="cards" id="cardsContainer">
+      <!-- Loading skeletons (will be replaced by actual content) -->
+      <div class="skeleton-card">
+        <div class="skeleton-line title"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-line title"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-line title"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Powered by The Guardian API × OpenAI</p>
+      <div class="footer-links">
+        <a href="#" class="footer-link">About</a>
+        <a href="#" class="footer-link">Privacy</a>
+        <a href="#" class="footer-link">API Status</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // ===== Configuration =====
+    const API_PATH = "/api/today";
+    const CACHE_BUST_PARAM = "v";
+
+    // ===== Utilities =====
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => document.querySelectorAll(selector);
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function normalizeLevel(level) {
+      const s = String(level || "").toLowerCase();
+      if (s.includes("high")) return "high";
+      if (s.includes("medium")) return "medium";
+      if (s.includes("low")) return "low";
+      return "medium";
+    }
+
+    function formatDate(date) {
+      const y = date.getFullYear();
+      const m = date.getMonth() + 1;
+      const d = date.getDate();
+      const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+      const wd = weekdays[date.getDay()];
+      return `${y}年${m}月${d}日（${wd}）`;
+    }
+
+    // ===== Status Management =====
+    function setStatus(state, text) {
+      const dot = $("#statusDot");
+      const textEl = $("#statusText");
+      
+      dot.classList.remove("loading", "success", "error");
+      if (state === "loading") dot.classList.add("loading");
+      if (state === "success") dot.classList.add("success");
+      if (state === "error") dot.classList.add("error");
+      
+      textEl.textContent = text;
+    }
+
+    function showError(message) {
+      const errorBox = $("#errorBox");
+      errorBox.textContent = message;
+      errorBox.classList.add("show");
+      setStatus("error", "取得に失敗");
+    }
+
+    function hideError() {
+      const errorBox = $("#errorBox");
+      errorBox.textContent = "";
+      errorBox.classList.remove("show");
+    }
+
+    // ===== Render Functions =====
+    function renderBulletList(items) {
+      if (!Array.isArray(items) || items.length === 0) {
+        return '<ul class="bullet-list"><li>情報なし</li></ul>';
+      }
+      
+      const bullets = items
+        .slice(0, 4)
+        .map(item => `<li>${escapeHtml(item)}</li>`)
+        .join("");
+      
+      return `<ul class="bullet-list">${bullets}</ul>`;
+    }
+
+    function renderBriefCard(item) {
+      const level = normalizeLevel(item.impact_level);
+      const title = escapeHtml(item.title_ja || "タイトルなし");
+      const summary = escapeHtml(item.one_sentence || "");
+      const url = item.original_url || item.originalUrl || "#";
+      
+      const levelText = {
+        high: "高",
+        medium: "中",
+        low: "低"
+      }[level] || "中";
+
+      return `
+        <article class="brief-card ${level}" data-level="${level}">
+          <div class="card-content">
+            <div class="card-header">
+              <span class="priority-badge ${level}">${level}</span>
+            </div>
+            
+            <h2 class="card-title">${title}</h2>
+            
+            ${summary ? `<div class="card-summary">${summary}</div>` : ''}
+            
+            <div class="card-section">
+              <h3 class="section-title">事実の要約</h3>
+              ${renderBulletList(item.fact_summary)}
+            </div>
+            
+            <div class="card-section">
+              <h3 class="section-title">市場・企業への示唆</h3>
+              ${renderBulletList(item.implications)}
+            </div>
+            
+            <div class="card-section">
+              <h3 class="section-title">今後の見通し</h3>
+              ${renderBulletList(item.outlook)}
+            </div>
+            
+            <div class="card-footer">
+              <div class="impact-level">
+                影響度評価:<span class="impact-value">${levelText}</span>
+              </div>
+              <a href="${escapeHtml(url)}" class="source-link" target="_blank" rel="noopener noreferrer">
+                The Guardian
+              </a>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    function renderSkeletons() {
+      return `
+        <div class="skeleton-card">
+          <div class="skeleton-line title"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-line title"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-line title"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+        </div>
+      `;
+    }
+
+    // ===== Filtering =====
+    function applyFilter(filter) {
+      const cards = $$(".brief-card");
+      
+      cards.forEach(card => {
+        if (filter === "all" || card.dataset.level === filter) {
+          card.style.display = "block";
+        } else {
+          card.style.display = "none";
+        }
+      });
+
+      // Update active button
+      $$(".filter-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.filter === filter);
+      });
+    }
+
+    // ===== Fetch Brief =====
+    async function fetchBrief({ cacheBust = false } = {}) {
+      hideError();
+      setStatus("loading", "取得中…");
+      
+      const container = $("#cardsContainer");
+      container.innerHTML = renderSkeletons();
+      
+      // Update date
+      $("#dateDisplay").textContent = formatDate(new Date());
+      
+      // Build URL with optional cache busting
+      const url = new URL(API_PATH, location.origin);
+      if (cacheBust) {
+        url.searchParams.set(CACHE_BUST_PARAM, String(Date.now()));
+      }
+      
+      try {
+        const response = await fetch(url.toString(), {
+          method: "GET",
+          cache: "no-store",
+          headers: { "Accept": "application/json" }
+        });
+        
+        const text = await response.text();
+        
+        if (!response.ok) {
+          showError(`API Error: ${response.status} ${response.statusText}\n\n${text.slice(0, 1200)}`);
+          return;
+        }
+        
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          showError(`JSON Parse Error\n\n${text.slice(0, 1200)}`);
+          return;
+        }
+        
+        const items = Array.isArray(data.items) ? data.items : [];
+        
+        if (items.length === 0) {
+          showError("APIから記事が返されませんでした。");
+          return;
+        }
+        
+        // Render cards
+        const html = items.slice(0, 3).map(renderBriefCard).join("");
+        container.innerHTML = html;
+        
+        setStatus("success", "最新を表示中");
+        
+      } catch (error) {
+        showError(`Network Error: ${error?.message || String(error)}\n\nネットワーク接続を確認してください。`);
+      }
+    }
+
+    // ===== PWA Service Worker =====
+    async function registerServiceWorker() {
+      if (!("serviceWorker" in navigator)) return;
+      
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js");
+        registration.update().catch(() => {});
+      } catch (error) {
+        // Service worker registration failed, continue without it
+      }
+    }
+
+    // ===== Event Listeners =====
+    function initEventListeners() {
+      // Refresh button
+      $("#refreshBtn").addEventListener("click", () => {
+        fetchBrief({ cacheBust: true });
+      });
+      
+      // Filter buttons
+      $$(".filter-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const filter = btn.dataset.filter;
+          applyFilter(filter);
+        });
+      });
+    }
+
+    // ===== Initialization =====
+    function init() {
+      registerServiceWorker();
+      initEventListeners();
+      fetchBrief({ cacheBust: false });
+    }
+
+    // Start the app
+    init();
+  </script>
+</body>
+</html>
