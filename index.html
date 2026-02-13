@@ -1,215 +1,348 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Impact Brief</title>
 
-<title>AI Impact Brief</title>
+  <!-- favicon also uses your logo -->
+  <link rel="icon" href="6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" />
 
-<link rel="icon" href="6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png" />
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%);
+      color: #fff;
+      padding: 20px;
+    }
 
-<style>
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%);
-  color: white;
-  padding: 20px;
-}
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
 
-.container {
-  max-width: 640px;
-  margin: 0 auto;
-}
+    /* ===== Header ===== */
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 6px 0 8px;
+    }
 
-.site-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 6px;
-}
+    /* ✅ ロゴを大きく（ここがポイント） */
+    .site-logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      object-fit: cover;
+      box-shadow: 0 0 18px rgba(59,130,246,0.35);
+    }
 
-.site-logo {
-  width: 44px;
-  height: 44px;
-  object-fit: contain;
-}
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.1;
+    }
 
-.subtitle {
-  color: #94a3b8;
-  margin: 0;
-  font-size: 14px;
-}
+    .subtitle {
+      margin: 6px 0 0;
+      color: #94a3b8;
+      font-size: 14px;
+    }
 
-.date {
-  color: #64748b;
-  font-size: 13px;
-  margin-bottom: 20px;
-}
+    /* ✅ 日付を英語で（Tokyo） */
+    .date {
+      color: #64748b;
+      font-size: 13px;
+      letter-spacing: 0.6px;
+      margin: 10px 0 22px;
+    }
 
-.card {
-  background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
-  padding: 20px;
-  border-radius: 18px;
-  margin-bottom: 20px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-}
+    /* ===== Cards ===== */
+    .card {
+      background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
+      padding: 18px;
+      border-radius: 18px;
+      margin-bottom: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
 
-.badge {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  margin-bottom: 10px;
-  font-weight: bold;
-}
+    .badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .badge.high { background: #ef4444; }
+    .badge.medium { background: #f59e0b; }
+    .badge.low { background: #22c55e; }
 
-.badge.high { background: #ef4444; }
-.badge.medium { background: #f59e0b; }
-.badge.low { background: #22c55e; }
+    .title {
+      margin: 6px 0 10px;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
 
-h2 {
-  margin: 10px 0;
-}
+    .summary {
+      background: rgba(255,255,255,0.08);
+      padding: 12px;
+      border-radius: 12px;
+      margin: 10px 0 14px;
+      color: #e2e8f0;
+    }
 
-.summary {
-  background: rgba(255,255,255,0.08);
-  padding: 14px;
-  border-radius: 12px;
-  margin: 10px 0;
-}
+    .section-title {
+      margin-top: 14px;
+      font-weight: 800;
+      color: #93c5fd;
+      font-size: 14px;
+    }
 
-.section-title {
-  margin-top: 16px;
-  font-weight: bold;
-  color: #93c5fd;
-}
+    ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
 
-ul {
-  padding-left: 18px;
-}
+    li {
+      margin: 6px 0;
+      color: #cbd5e1;
+    }
 
-button {
-  margin-top: 14px;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 14px;
-}
+    .btn {
+      margin-top: 14px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .btn:hover { background: #2563eb; }
 
-button:hover {
-  background: #2563eb;
-}
+    .loading {
+      text-align: center;
+      margin-top: 28px;
+      color: #94a3b8;
+    }
 
-.loading {
-  text-align: center;
-  margin-top: 40px;
-  color: #94a3b8;
-}
+    .error {
+      color: #f87171;
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.25);
+      padding: 12px;
+      border-radius: 12px;
+      margin-top: 16px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
 
-.error {
-  color: #ef4444;
-  text-align: center;
-  margin-top: 20px;
-}
-</style>
+    .retry-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    .small {
+      opacity: 0.7;
+      font-size: 12px;
+    }
+  </style>
 </head>
 
 <body>
-<div class="container">
+  <div class="container">
+    <header class="site-header">
+      <img
+        src="6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png"
+        alt="AI Impact Brief Logo"
+        class="site-logo"
+      />
+      <div>
+        <h1>AI Impact Brief</h1>
+        <p class="subtitle">Today's AI News</p>
+      </div>
+    </header>
 
-<header class="site-header">
-  <img 
-    src="6E18786B-123B-4ADC-A30E-EC7D5A01A4FE.png"
-    alt="AI Impact Brief Logo"
-    class="site-logo"
-  />
-  <div>
-    <h1>AI Impact Brief</h1>
-    <p class="subtitle">Today's AI News</p>
+    <div class="date" id="todayDate"></div>
+
+    <div id="content" class="loading">Loading today's AI brief…</div>
   </div>
-</header>
-
-<div class="date" id="todayDate"></div>
-
-<div id="content">
-  <div class="loading">Loading today's AI brief...</div>
-</div>
-
-</div>
 
 <script>
-const API_URL = "https://ai-impact-brief.vercel.app/api/today";
+  // ✅ 相対パスにする（CORS/ドメイン違いを根本解決）
+  const API_PATH = "/api/today";
 
-function formatDate() {
-  const today = new Date();
-  return today.toLocaleDateString("ja-JP", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long"
-  });
-}
-
-document.getElementById("todayDate").innerText = formatDate();
-
-async function fetchNews() {
-  try {
-    const res = await fetch(API_URL);
-    const data = await res.json();
-
-    if (!data.articles) {
-      throw new Error("Invalid response format");
-    }
-
-    renderNews(data.articles);
-
-  } catch (err) {
-    document.getElementById("content").innerHTML =
-      `<div class="error">ニュースの取得に失敗しました</div>`;
+  function formatDateTokyoEnglish() {
+    const now = new Date();
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Tokyo",
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(now);
   }
-}
 
-function renderNews(articles) {
-  const container = document.getElementById("content");
-  container.innerHTML = "";
+  function editionNumber() {
+    const start = new Date("2026-01-01T00:00:00+09:00");
+    const now = new Date();
+    const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    return String(Math.max(0, diffDays)).padStart(3, "0");
+  }
 
-  articles.forEach(article => {
-    const card = document.createElement("div");
-    card.className = "card";
+  document.getElementById("todayDate").textContent =
+    `${formatDateTokyoEnglish()} · Edition ${editionNumber()}`;
 
-    card.innerHTML = `
-      <span class="badge ${article.impact_level.toLowerCase()}">
-        ${article.impact_level}
-      </span>
+  function impactSortKey(level) {
+    if (level === "High") return 3;
+    if (level === "Medium") return 2;
+    return 1;
+  }
 
-      <h2>${article.title}</h2>
+  function normalizeArticles(data) {
+    // ✅ APIが items でも articles でも動くように両対応
+    const list = Array.isArray(data?.items) ? data.items
+               : Array.isArray(data?.articles) ? data.articles
+               : null;
+    if (!list) return null;
 
-      <div class="summary">${article.summary}</div>
+    // フィールド名の揺れも吸収
+    return list.map(a => ({
+      impact_level: a.impact_level ?? a.impactLevel ?? "Medium",
+      title: a.title_ja ?? a.title ?? a.headline ?? "(No title)",
+      one_sentence: a.one_sentence ?? a.summary ?? a.oneSentence ?? "",
+      what_happened: a.what_happened ?? a.what_happened_ja ?? a.whatHappened ?? [],
+      why_important: a.why_important ?? a.why_important_ja ?? a.whyImportant ?? [],
+      action_advice: a.action_advice ?? a.action_advice_ja ?? a.actionAdvice ?? [],
+      original_url: a.original_url ?? a.originalUrl ?? a.url ?? "#",
+    }));
+  }
 
-      <div class="section-title">何が起きた？</div>
-      <ul>${article.what_happened.map(item => `<li>${item}</li>`).join("")}</ul>
+  function safeArray(v) {
+    return Array.isArray(v) ? v : (v ? [String(v)] : []);
+  }
 
-      <div class="section-title">なぜ重要？</div>
-      <ul>${article.why_important.map(item => `<li>${item}</li>`).join("")}</ul>
+  function badgeClass(level) {
+    if (level === "High") return "high";
+    if (level === "Medium") return "medium";
+    return "low";
+  }
 
-      <div class="section-title">行動アドバイス</div>
-      <ul>${article.action_advice.map(item => `<li>${item}</li>`).join("")}</ul>
-
-      <button onclick="window.open('${article.original_url}', '_blank')">
-        元記事を読む
-      </button>
+  function renderError(message, debug) {
+    const c = document.getElementById("content");
+    c.innerHTML = `
+      <div class="error">
+${message}
+${debug ? "\n---\n" + debug : ""}
+        <div class="retry-row">
+          <button class="btn" id="retryBtn">Try Again</button>
+          <div class="small">If this persists, open /api/today in browser and share the output.</div>
+        </div>
+      </div>
     `;
+    document.getElementById("retryBtn").onclick = fetchNews;
+  }
 
-    container.appendChild(card);
-  });
-}
+  function renderNews(list) {
+    const c = document.getElementById("content");
+    c.className = "";
+    c.innerHTML = "";
 
-fetchNews();
+    // ✅ 表示順：High→Medium→Low
+    list.sort((a,b) => impactSortKey(b.impact_level) - impactSortKey(a.impact_level));
+
+    for (const a of list) {
+      const level = a.impact_level;
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="badge ${badgeClass(level)}">${level}</div>
+        <div class="title">${escapeHtml(a.title)}</div>
+        <div class="summary">${escapeHtml(a.one_sentence)}</div>
+
+        <div class="section-title">What happened?</div>
+        <ul>${safeArray(a.what_happened).map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+
+        <div class="section-title">Why it matters</div>
+        <ul>${safeArray(a.why_important).map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+
+        <div class="section-title">Action insight</div>
+        <ul>${safeArray(a.action_advice).map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+
+        <button class="btn" onclick="window.open('${escapeAttr(a.original_url)}','_blank')">
+          Read Original Article →
+        </button>
+      `;
+      c.appendChild(card);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+  function escapeAttr(s) {
+    // attribute-safe
+    return String(s ?? "").replaceAll('"', "%22").replaceAll("'", "%27");
+  }
+
+  async function fetchNews() {
+    const c = document.getElementById("content");
+    c.className = "loading";
+    c.textContent = "Loading today's AI brief…";
+
+    try {
+      const res = await fetch(API_PATH, { method: "GET", cache: "no-store" });
+      const raw = await res.text();
+
+      if (!res.ok) {
+        return renderError(
+          `ニュースの取得に失敗しました（HTTP ${res.status} ${res.statusText}）`,
+          `URL: ${location.origin}${API_PATH}\nBody:\n${raw}`
+        );
+      }
+
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch (e) {
+        return renderError(
+          "ニュースの取得に失敗しました（JSON解析エラー）",
+          `URL: ${location.origin}${API_PATH}\nRaw:\n${raw}`
+        );
+      }
+
+      const normalized = normalizeArticles(data);
+      if (!normalized) {
+        return renderError(
+          "ニュースの取得に失敗しました（APIの返却形式が想定と違います）",
+          `期待: { items: [...] } or { articles: [...] }\n実際:\n${raw}`
+        );
+      }
+
+      renderNews(normalized);
+
+    } catch (e) {
+      // ✅ ネットワーク/CORS/URL誤りなど
+      renderError(
+        "ニュースの取得に失敗しました（Network Error）",
+        `URL: ${location.origin}${API_PATH}\nError: ${String(e)}`
+      );
+    }
+  }
+
+  fetchNews();
 </script>
-
 </body>
 </html>
