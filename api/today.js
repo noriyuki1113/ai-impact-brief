@@ -1,5 +1,7 @@
 // /api/today.js  (Vercel Serverless Function)
-// ✅ Guardian + ✅ GDELT(5秒/回) + ✅ “最低1本は非Guardian”強制 + ✅ キャッシュ + ✅ Debug可視化
+// ✅ Guardian + ✅ GDELT(非JSONエラー耐性/短すぎ回避/5秒ルール) + ✅ 最低1本は非Guardian強制
+// ✅ Debug可視化 + ✅ キャッシュ + ✅ OpenAI整形(Score公開)
+//
 // そのまま貼り替えOK（Node 18+ / Vercel）
 
 module.exports = async function handler(req, res) {
@@ -25,10 +27,11 @@ module.exports = async function handler(req, res) {
   // =========================
   const urlObj = new URL(req.url, "https://example.com");
   const debug = urlObj.searchParams.get("debug") === "1";
+  const cacheBust = urlObj.searchParams.get("v") || "";
 
   // ✅ キャッシュ（GDELT保護）
   // debug=1 のときは no-store にして挙動確認しやすく
-  if (debug) {
+  if (debug || cacheBust) {
     res.setHeader("Cache-Control", "no-store");
   } else {
     res.setHeader("Cache-Control", "s-maxage=600, stale-while-revalidate=1200");
@@ -97,7 +100,7 @@ module.exports = async function handler(req, res) {
         return "policy";
       if (t.match(/chip|gpu|semiconductor|export|supply chain|compute|data center|h100|blackwell/))
         return "compute";
-      if (t.match(/funding|investment|ipo|acquisition|m&a|valuation|round|capital/))
+      if (t.match(/funding|investment|ipo|acquisition|m&a|valuation|round|capital|venture/))
         return "capital";
       if (t.match(/openai|google|microsoft|amazon|meta|anthropic|deepmind|nvidia/))
         return "bigtech";
@@ -119,7 +122,6 @@ module.exports = async function handler(req, res) {
         }
         if (picked.length >= limit) break;
       }
-      // 足りない分は上から埋める
       if (picked.length < limit) {
         for (const c of list) {
           if (picked.length >= limit) break;
@@ -135,19 +137,23 @@ module.exports = async function handler(req, res) {
       const nonGuardian = allCandidates.filter((x) => x.source !== "The Guardian");
 
       const picked = [];
-
-      // 1) まず非Guardianから1本
       if (nonGuardian.length > 0) picked.push(nonGuardian[0]);
 
-      // 2) 残りは全体からテーマ分散で埋める
       const rest = allCandidates.filter(
         (x) => !picked.find((p) => p.original_url === x.original_url)
       );
       const more = pickDiversified(rest, 3 - picked.length);
 
-      return dedupeByUrl([...picked, ...more]).slice(0, 3);
+      // もしnonGuardianがゼロなら、guardianから多様に3本
+      const out = dedupeByUrl([...picked, ...more]).slice(0, 3);
+      if (out.length < 3) {
+        const fb = pickDiversified(dedupeByUrl(guardian), 3);
+        return fb;
+      }
+      return out;
     }
 
+    // 日本関連の軽いブースト
     function japanBoostScore(text = "") {
       const s = String(text).toLowerCase();
       let score = 0;
@@ -196,16 +202,15 @@ module.exports = async function handler(req, res) {
     }));
 
     // =========================
-    // 2) GDELT（世界枠 / 5秒ルール順守）
+    // 2) GDELT（世界枠 / 5秒ルール / 非JSONエラー耐性 / “短すぎ”回避）
     // =========================
-    // ✅ “短い”が正義：3語〜4語程度を複数回に分ける
     const GDELT_QUERIES = [
-      "AI regulation EU",
-      "AI chip export",
-      "AI investment funding",
+      '("artificial intelligence" OR "AI") AND (regulation OR "AI Act") AND (EU OR Europe)',
+      '("artificial intelligence" OR "AI") AND (semiconductor OR chip OR GPU) AND (export OR controls)',
+      '("artificial intelligence" OR "AI") AND (investment OR funding OR valuation) AND (startup OR venture)'
     ];
 
-    async function fetchGdeltOnce({ query, maxrecords = 20, timespan = "1d" }) {
+    async function fetchGdeltOnce({ query, maxrecords = 25, timespan = "1d" }) {
       const base = "https://api.gdeltproject.org/api/v2/doc/doc";
       const u = new URL(base);
       u.searchParams.set("query", query);
@@ -216,12 +221,20 @@ module.exports = async function handler(req, res) {
 
       const r = await fetchWithTimeout(u.toString(), {}, 15000);
 
+      // ✅ まず text（GDELTはエラー時にJSONでなく文章を返す）
+      const text = await r.text().catch(() => "");
+
       if (!r.ok) {
-        const t = await r.text().catch(() => "");
-        throw new Error(`GDELT HTTP ${r.status}: ${t.slice(0, 200)}`);
+        throw new Error(`GDELT HTTP ${r.status}: ${text.slice(0, 220)}`);
       }
 
-      const data = await r.json();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`GDELT non-JSON response: ${text.slice(0, 220)}`);
+      }
+
       const arts = Array.isArray(data?.articles) ? data.articles : [];
 
       return arts.map((a) => ({
@@ -234,7 +247,7 @@ module.exports = async function handler(req, res) {
       }));
     }
 
-    async function fetchGdeltBatchSafe(queries, { maxrecords = 20, timespan = "1d" } = {}) {
+    async function fetchGdeltBatchSafe(queries, { maxrecords = 25, timespan = "1d" } = {}) {
       const out = [];
       for (let i = 0; i < queries.length; i++) {
         const q = queries[i];
@@ -245,8 +258,7 @@ module.exports = async function handler(req, res) {
             out.push(...items);
             break;
           } catch (e) {
-            // レート制限/一時障害：5秒待って再試行
-            await sleep(5000);
+            await sleep(5000); // ✅ 5秒待って再試行
             if (attempt === 1) throw e;
           }
         }
@@ -259,7 +271,7 @@ module.exports = async function handler(req, res) {
     let gdeltItems = [];
     let gdeltError = null;
     try {
-      gdeltItems = await fetchGdeltBatchSafe(GDELT_QUERIES, { maxrecords: 20, timespan: "1d" });
+      gdeltItems = await fetchGdeltBatchSafe(GDELT_QUERIES, { maxrecords: 25, timespan: "1d" });
     } catch (e) {
       gdeltItems = [];
       gdeltError = e?.message || String(e);
@@ -267,7 +279,7 @@ module.exports = async function handler(req, res) {
     }
 
     // =========================
-    // 3) 統合 → 重複排除 → 日本視点ランキング
+    // 3) 統合 → 重複排除 → ランキング（日本視点）→ 最終3本（非Guardian保証）
     // =========================
     const merged = dedupeByUrl([...guardianArticles, ...gdeltItems]);
 
@@ -278,7 +290,6 @@ module.exports = async function handler(req, res) {
       const ja = japanBoostScore(A);
       const jb = japanBoostScore(B);
 
-      // ✅ 日本波及を優先、同点なら Guardian を少し優遇（品質）
       const qa = a.source === "The Guardian" ? 1 : 0;
       const qb = b.source === "The Guardian" ? 1 : 0;
 
@@ -287,14 +298,12 @@ module.exports = async function handler(req, res) {
       return 0;
     });
 
-    // ✅ 最終3本：最低1本は非Guardianを保証
     const final3 = pick3WithSourceGuarantee(merged);
 
-    // フォールバック：もしGDELTが0で保証できない場合はGuardianだけで3本確保
+    // どうしても3本揃わないときの保険
     if (final3.length < 3) {
-      const fallback = pickDiversified(dedupeByUrl([...guardianArticles]), 3);
-      while (fallback.length < 3 && merged[fallback.length]) fallback.push(merged[fallback.length]);
-      final3.splice(0, final3.length, ...fallback.slice(0, 3));
+      const fb = pickDiversified(dedupeByUrl(guardianArticles), 3);
+      final3.splice(0, final3.length, ...fb);
     }
 
     // =========================
@@ -451,7 +460,6 @@ ${JSON.stringify(final3)}
     };
     const levelFromScore = (score) => (score >= 90 ? "High" : score >= 70 ? "Medium" : "Low");
 
-    // 入力(final3)のsource/published_atをURLで引けるように
     const srcMap = new Map(final3.map((a) => [normalizeUrl(a.original_url), a]));
 
     payload.items = payload.items.map((it) => {
@@ -459,7 +467,6 @@ ${JSON.stringify(final3)}
       out.original_url = normalizeUrl(out.original_url || "");
       const src = srcMap.get(out.original_url);
 
-      // breakdown
       const bd = out.score_breakdown || {};
       const market = clamp(toInt(bd.market_impact) ?? 0, 0, 40);
       const biz = clamp(toInt(bd.business_impact) ?? 0, 0, 30);
@@ -473,26 +480,23 @@ ${JSON.stringify(final3)}
       };
       out.importance_score = clamp(toInt(out.importance_score) ?? market + biz + jp + conf, 0, 100);
 
-      // impact_level整合
       out.impact_level = ["High", "Medium", "Low"].includes(out.impact_level)
         ? out.impact_level
         : levelFromScore(out.importance_score);
 
-      // tags
       out.tags = ensureTags(out.tags);
 
-      // source/published_at補完
       out.source = out.source || src?.source || "";
       out.published_at = out.published_at || src?.published_at || "";
 
-      // 保険：配列
       for (const f of ["fact_summary", "implications", "outlook"]) {
         if (!Array.isArray(out[f])) out[f] = [];
         out[f] = out[f].map((x) => String(x || "").trim()).filter(Boolean).slice(0, 4);
-        if (out[f].length < 2) out[f] = out[f].concat(["情報が限定的なため追加確認が必要", "一次情報の更新を注視"]).slice(0, 2);
+        if (out[f].length < 2) {
+          out[f] = out[f].concat(["情報が限定的なため追加確認が必要", "一次情報の更新を注視"]).slice(0, 2);
+        }
       }
 
-      // trim strings
       for (const k of ["title_ja", "one_sentence", "why_it_matters", "japan_impact", "original_title"]) {
         if (typeof out[k] === "string") out[k] = out[k].trim();
       }
@@ -500,14 +504,13 @@ ${JSON.stringify(final3)}
       return out;
     });
 
-    // ✅ スコア順
     payload.items.sort((a, b) => (Number(b.importance_score) || 0) - (Number(a.importance_score) || 0));
 
     // =========================
     // 8) Metadata
     // =========================
     payload.generated_at = new Date().toISOString();
-    payload.version = "A-GDELT-1.0";
+    payload.version = "A-GDELT-2.0";
     payload.sources = Array.from(new Set(payload.items.map((x) => x.source).filter(Boolean)));
 
     // =========================
