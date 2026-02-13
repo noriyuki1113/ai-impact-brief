@@ -1,13 +1,14 @@
 // /api/today.js  (Vercel Serverless Function)
-// A-GDELT-5.0  ✅完全統合版（Guardian + GDELT + OpenAI）
-// - GDELT「短い単語」回避クエリ
-// - GDELT 5秒ルール遵守
+// A-GDELT-6.0 ✅完全統合版（Guardian + GDELT + OpenAI）
+// - GDELTは“単発クエリ”に統合（5秒ルール待機の連鎖を排除 → Abort激減）
+// - GDELT timeoutを25秒に延長
 // - GDELT allowlist（低品質媒体除外）
 // - URL正規化＆重複除外
 // - published_at ISO8601統一（GDELT/Guardian混在OK）
-// - 3本のテーマ分散（簡易）
-// - 2ソース以上を可能なら確保（最低1本は非Guardian優先）
+// - 2ソース以上を“取れたら必ず混ぜる”（最低1本は非Guardian優先）
+// - テーマ分散（簡易）
 // - High最大1件を強制
+// - importance_scoreで最終ソート
 // - debug=1で内部状態表示
 //
 // 必要環境変数:
@@ -17,7 +18,6 @@
 // 使い方:
 //   https://<your-domain>/api/today
 //   https://<your-domain>/api/today?debug=1
-//   https://<your-domain>/api/today?v=1 (cache bust)
 
 module.exports = async function handler(req, res) {
   // ---- Robust CORS ----
@@ -121,7 +121,7 @@ module.exports = async function handler(req, res) {
       "washingtonpost.com",
       "bbc.co.uk",
       "bbc.com",
-      // 日本系を混ぜたいなら（任意）
+      // 日本系（任意）
       "nikkei.com",
       "itmedia.co.jp",
       "impress.co.jp",
@@ -152,22 +152,22 @@ module.exports = async function handler(req, res) {
       return out;
     }
 
-    // GDELTの 20260213T031500Z を ISOへ
+    // GDELTの 20260213T031500Z を ISOへ / 既にISOならそのまま
     function toIsoMaybe(s) {
       const v = String(s || "").trim();
       const m = v.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
       if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
-      if (v.includes("-") && v.includes("T")) return v; // already ISO-ish
+      if (v.includes("-") && v.includes("T")) return v;
       return v || "";
     }
 
     function themeBucket(title = "", body = "") {
       const t = (title + " " + body).toLowerCase();
-      if (t.match(/policy|regulation|governance|law|ban|commission|ministry/))
+      if (t.match(/policy|regulation|governance|law|ban|commission|ministry|act/))
         return "policy";
       if (
         t.match(
-          /chip|semiconductor|export|supply chain|compute|data center|accelerator/
+          /chip|semiconductor|export|controls|supply chain|compute|data center|accelerator|gpu/
         )
       )
         return "compute";
@@ -201,21 +201,31 @@ module.exports = async function handler(req, res) {
       return picked.slice(0, limit);
     }
 
-    // ✅ 可能なら2ソース以上（最低1本は非Guardian優先）
+    // ✅ 取れたら必ず非Guardianを混ぜる（最低1本）
     function pick3WithSourceGuarantee(allCandidates) {
       const guardian = allCandidates.filter((x) => x.source === "The Guardian");
       const nonGuardian = allCandidates.filter((x) => x.source !== "The Guardian");
 
+      // まず非Guardianを多様化しながら最大1本（=混ぜる枠）
       const picked = [];
-      if (nonGuardian.length > 0) picked.push(nonGuardian[0]);
+      if (nonGuardian.length > 0) {
+        const ng = pickDiversified(nonGuardian, 1);
+        picked.push(...ng);
+      }
 
+      // 残りは全体から分散して選ぶ
       const rest = allCandidates.filter(
         (x) => !picked.find((p) => p.original_url === x.original_url)
       );
       const more = pickDiversified(rest, 3 - picked.length);
 
       const out = dedupeByUrl([...picked, ...more]).slice(0, 3);
-      if (out.length < 3) return pickDiversified(dedupeByUrl(guardian), 3);
+
+      // もし足りないならGuardianで埋める
+      if (out.length < 3) {
+        const fb = pickDiversified(dedupeByUrl(guardian), 3);
+        return fb;
+      }
       return out;
     }
 
@@ -258,19 +268,14 @@ module.exports = async function handler(req, res) {
 
     // =========================
     // 2) GDELT (Doc 2.1)
-    // ✅ "keyword too short"回避：短い単語を使わない
-    // ✅ 5 sec rule
+    // ✅ “単発”クエリで短語エラー回避＆タイムアウト回避
+    // ✅ 5秒ルールも自然に守れる（単発＋失敗時の待機）
     // =========================
-    const GDELT_QUERIES = [
-      // policy
-      "artificial intelligence regulation european commission governance framework",
-      // compute/supply chain
-      "artificial intelligence semiconductor processor accelerator export restrictions supply chain",
-      // funding/capital
-      "artificial intelligence investment funding valuation venture capital startup",
-    ];
+    const GDELT_QUERY_SINGLE =
+      '(artificial intelligence OR AI) ' +
+      '(regulation OR governance OR commission OR law OR act OR export OR controls OR semiconductor OR chip OR GPU OR accelerator OR funding OR investment OR valuation OR venture)';
 
-    async function fetchGdeltOnce({ query, maxrecords = 40, timespan = "1d" }) {
+    async function fetchGdeltOnce({ query, maxrecords = 60, timespan = "1d" }) {
       const base = "https://api.gdeltproject.org/api/v2/doc/doc";
       const u = new URL(base);
       u.searchParams.set("query", query);
@@ -279,7 +284,8 @@ module.exports = async function handler(req, res) {
       u.searchParams.set("maxrecords", String(maxrecords));
       u.searchParams.set("timespan", timespan);
 
-      const r = await fetchWithTimeout(u.toString(), {}, 15000);
+      // ✅ GDELTは遅い時があるので25秒
+      const r = await fetchWithTimeout(u.toString(), {}, 25000);
       const text = await r.text().catch(() => "");
 
       if (!r.ok) {
@@ -307,39 +313,31 @@ module.exports = async function handler(req, res) {
         }))
         .filter((x) => x.original_url && x.original_title);
 
-      // ✅ allowlistで品質を安定化
+      // ✅ allowlistで品質安定
       return mapped.filter((x) => isAllowedDomain(x.original_url));
     }
 
-    async function fetchGdeltBatchSafe(queries, { maxrecords = 40, timespan = "1d" } = {}) {
-      const out = [];
-      for (let i = 0; i < queries.length; i++) {
-        const q = queries[i];
-
-        // 2回だけリトライ（5秒ルール順守）
-        for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            const items = await fetchGdeltOnce({ query: q, maxrecords, timespan });
-            out.push(...items);
-            break;
-          } catch (e) {
-            await sleep(5000);
-            if (attempt === 1) throw e;
-          }
+    async function fetchGdeltSafeSingle() {
+      // 最大2回（失敗したら5秒待って再試行）
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          return await fetchGdeltOnce({
+            query: GDELT_QUERY_SINGLE,
+            maxrecords: 60,
+            timespan: "1d",
+          });
+        } catch (e) {
+          await sleep(5000);
+          if (attempt === 1) throw e;
         }
-
-        if (i < queries.length - 1) await sleep(5000);
       }
-      return out;
+      return [];
     }
 
     let gdeltItems = [];
     let gdeltError = null;
     try {
-      gdeltItems = await fetchGdeltBatchSafe(GDELT_QUERIES, {
-        maxrecords: 40,
-        timespan: "1d",
-      });
+      gdeltItems = await fetchGdeltSafeSingle();
     } catch (e) {
       gdeltItems = [];
       gdeltError = e?.message || String(e);
@@ -350,12 +348,12 @@ module.exports = async function handler(req, res) {
     // 3) Merge -> dedupe -> pick final3
     // =========================
     const merged = dedupeByUrl([...guardianArticles, ...gdeltItems]);
-    const final3 = pick3WithSourceGuarantee(merged);
+    let final3 = pick3WithSourceGuarantee(merged);
 
     // フォールバック
     if (final3.length < 3) {
       const fb = pickDiversified(dedupeByUrl(guardianArticles), 3);
-      final3.splice(0, final3.length, ...fb);
+      final3 = fb;
     }
 
     // =========================
@@ -559,7 +557,9 @@ ${JSON.stringify(final3)}
         if (!Array.isArray(out[f])) out[f] = [];
         out[f] = out[f].map((x) => String(x || "").trim()).filter(Boolean).slice(0, 4);
         if (out[f].length < 2) {
-          out[f] = out[f].concat(["情報が限定的なため追加確認が必要", "一次情報の更新を注視"]).slice(0, 2);
+          out[f] = out[f]
+            .concat(["情報が限定的なため追加確認が必要", "一次情報の更新を注視"])
+            .slice(0, 2);
         }
       }
 
@@ -585,7 +585,7 @@ ${JSON.stringify(final3)}
     });
 
     payload.generated_at = new Date().toISOString();
-    payload.version = "A-GDELT-5.0";
+    payload.version = "A-GDELT-6.0";
     payload.sources = Array.from(new Set(payload.items.map((x) => x.source).filter(Boolean)));
 
     if (debug) {
@@ -602,7 +602,7 @@ ${JSON.stringify(final3)}
             published_at: a.published_at,
             host: hostOf(a.original_url),
           })),
-          queries: GDELT_QUERIES,
+          queries: [GDELT_QUERY_SINGLE],
           allowlist_size: GDELT_ALLOWLIST.size,
         },
       });
