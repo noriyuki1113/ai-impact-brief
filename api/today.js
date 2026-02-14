@@ -1,23 +1,18 @@
-// /api/today.js  (Vercel Serverless Function)
-// A-GDELT-6.0 ✅完全統合版（Guardian + GDELT + OpenAI）
-// - GDELTは“単発クエリ”に統合（5秒ルール待機の連鎖を排除 → Abort激減）
-// - GDELT timeoutを25秒に延長
-// - GDELT allowlist（低品質媒体除外）
-// - URL正規化＆重複除外
-// - published_at ISO8601統一（GDELT/Guardian混在OK）
-// - 2ソース以上を“取れたら必ず混ぜる”（最低1本は非Guardian優先）
-// - テーマ分散（簡易）
-// - High最大1件を強制
-// - importance_scoreで最終ソート
-// - debug=1で内部状態表示
-//
-// 必要環境変数:
-//   GUARDIAN_API_KEY
-//   OPENAI_API_KEY
-//
-// 使い方:
-//   https://<your-domain>/api/today
-//   https://<your-domain>/api/today?debug=1
+/**
+ * /api/today
+ * - Guardian 3本 + OpenAIで構造化（日本語・冷静・戦略）
+ * - 日本市場視点のスコア公開（importance_score + breakdown）
+ * - R2に保存（latest.json / daily/YYYY-MM-DD.json / raw/YYYY-MM-DD.json）
+ * - 取得時はキャッシュ優先（R2）→ 生成（OpenAI）→ 保存
+ *
+ * 必要ENV:
+ *  GUARDIAN_API_KEY
+ *  OPENAI_API_KEY
+ *  R2_ACCOUNT_ID
+ *  R2_ACCESS_KEY_ID
+ *  R2_SECRET_ACCESS_KEY
+ *  R2_BUCKET
+ */
 
 module.exports = async function handler(req, res) {
   // ---- Robust CORS ----
@@ -37,208 +32,216 @@ module.exports = async function handler(req, res) {
   if (req.method !== "GET")
     return res.status(405).json({ error: "Method Not Allowed" });
 
-  // =========================
-  // 0) Debug + Cache Control
-  // =========================
+  // ===== Helpers =====
+  const nowIso = () => new Date().toISOString();
+  const todayJST = () => {
+    const d = new Date();
+    // JST (+9)
+    const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return jst.toISOString().slice(0, 10);
+  };
+
+  const safeJson = async (r) => {
+    const t = await r.text().catch(() => "");
+    try {
+      return { ok: true, json: JSON.parse(t), raw: t };
+    } catch {
+      return { ok: false, raw: t };
+    }
+  };
+
   const urlObj = new URL(req.url, "https://example.com");
   const debug = urlObj.searchParams.get("debug") === "1";
-  const cacheBust = urlObj.searchParams.get("v") || "";
+  const force = urlObj.searchParams.get("force") === "1"; // キャッシュ無視して生成
+  const date = urlObj.searchParams.get("date") || todayJST(); // 過去日取得用（dailyにあれば返す）
 
-  if (debug || cacheBust) {
-    res.setHeader("Cache-Control", "no-store");
-  } else {
-    res.setHeader("Cache-Control", "s-maxage=600, stale-while-revalidate=1200");
+  // ===== ENV =====
+  const guardianKey = process.env.GUARDIAN_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  const r2AccountId = process.env.R2_ACCOUNT_ID;
+  const r2AccessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const r2SecretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const r2Bucket = process.env.R2_BUCKET;
+
+  if (!guardianKey)
+    return res.status(500).json({ error: "GUARDIAN_API_KEY is missing" });
+  if (!openaiKey)
+    return res.status(500).json({ error: "OPENAI_API_KEY is missing" });
+
+  // R2は“あるなら使う”にして、無くても動くように（開発中の事故防止）
+  const r2Enabled = Boolean(r2AccountId && r2AccessKeyId && r2SecretAccessKey && r2Bucket);
+
+  // ===== R2 (S3互換) =====
+  const r2Endpoint = r2Enabled
+    ? `https://${r2AccountId}.r2.cloudflarestorage.com`
+    : null;
+
+  // AWS SigV4 署名（外部ライブラリなし）
+  // 参考: S3互換の最低限PUT/GET用
+  async function sha256Hex(message) {
+    const enc = new TextEncoder();
+    const data = enc.encode(message);
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function hmac(key, msg) {
+    const enc = new TextEncoder();
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      key,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(msg));
+    return new Uint8Array(sig);
+  }
+
+  function toHex(buf) {
+    return [...buf].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function getSignatureKey(secret, dateStamp, regionName, serviceName) {
+    const enc = new TextEncoder();
+    const kDate = await hmac(enc.encode("AWS4" + secret), dateStamp);
+    const kRegion = await hmac(kDate, regionName);
+    const kService = await hmac(kRegion, serviceName);
+    const kSigning = await hmac(kService, "aws4_request");
+    return kSigning;
+  }
+
+  function amzDate() {
+    // YYYYMMDD'T'HHMMSS'Z'
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return (
+      d.getUTCFullYear() +
+      pad(d.getUTCMonth() + 1) +
+      pad(d.getUTCDate()) +
+      "T" +
+      pad(d.getUTCHours()) +
+      pad(d.getUTCMinutes()) +
+      pad(d.getUTCSeconds()) +
+      "Z"
+    );
+  }
+
+  async function r2SignedFetch({ method, key, body, contentType }) {
+    const region = "auto";
+    const service = "s3";
+    const host = `${r2AccountId}.r2.cloudflarestorage.com`;
+    const endpoint = `${r2Endpoint}/${encodeURIComponent(r2Bucket)}/${key
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/")}`;
+
+    const t = amzDate();
+    const dateStamp = t.slice(0, 8);
+
+    const payloadHash = await sha256Hex(body ? body : "");
+    const canonicalUri = `/${r2Bucket}/${key
+      .split("/")
+      .map((p) => encodeURIComponent(p))
+      .join("/")}`;
+
+    const canonicalQueryString = "";
+    const canonicalHeaders =
+      `host:${host}\n` +
+      `x-amz-content-sha256:${payloadHash}\n` +
+      `x-amz-date:${t}\n`;
+    const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+
+    const canonicalRequest =
+      `${method}\n${canonicalUri}\n${canonicalQueryString}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+
+    const algorithm = "AWS4-HMAC-SHA256";
+    const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+    const stringToSign =
+      `${algorithm}\n${t}\n${credentialScope}\n${await sha256Hex(canonicalRequest)}`;
+
+    const signingKey = await getSignatureKey(r2SecretAccessKey, dateStamp, region, service);
+    const signature = toHex(await hmac(signingKey, stringToSign));
+
+    const authorizationHeader =
+      `${algorithm} ` +
+      `Credential=${r2AccessKeyId}/${credentialScope}, ` +
+      `SignedHeaders=${signedHeaders}, ` +
+      `Signature=${signature}`;
+
+    const headers = {
+      "x-amz-date": t,
+      "x-amz-content-sha256": payloadHash,
+      Authorization: authorizationHeader,
+    };
+    if (contentType) headers["Content-Type"] = contentType;
+
+    const resp = await fetch(endpoint, {
+      method,
+      headers,
+      body: body ? body : undefined,
+    });
+
+    return resp;
+  }
+
+  async function r2GetJson(key) {
+    if (!r2Enabled) return null;
+    const resp = await r2SignedFetch({ method: "GET", key });
+    if (!resp.ok) return null;
+    const t = await resp.text().catch(() => "");
+    try {
+      return JSON.parse(t);
+    } catch {
+      return null;
+    }
+  }
+
+  async function r2PutJson(key, obj) {
+    if (!r2Enabled) return false;
+    const body = JSON.stringify(obj);
+    const resp = await r2SignedFetch({
+      method: "PUT",
+      key,
+      body,
+      contentType: "application/json; charset=utf-8",
+    });
+    return resp.ok;
+  }
+
+  // ====== 1) まずR2キャッシュを返す（date指定はdaily優先） ======
+  try {
+    if (r2Enabled && !force) {
+      if (date !== todayJST()) {
+        const daily = await r2GetJson(`daily/${date}.json`);
+        if (daily) {
+          daily.cache = { hit: true, key: `daily/${date}.json`, at: nowIso() };
+          return res.status(200).json(daily);
+        }
+      } else {
+        const latest = await r2GetJson("latest.json");
+        if (latest) {
+          latest.cache = { hit: true, key: "latest.json", at: nowIso() };
+          return res.status(200).json(latest);
+        }
+      }
+    }
+  } catch (_) {
+    // キャッシュ失敗は無視して生成へ
   }
 
   try {
-    const guardianKey = process.env.GUARDIAN_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
-
-    if (!guardianKey)
-      return res.status(500).json({ error: "GUARDIAN_API_KEY is missing" });
-    if (!openaiKey)
-      return res.status(500).json({ error: "OPENAI_API_KEY is missing" });
-
     // =========================
-    // Helpers
-    // =========================
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-    async function fetchWithTimeout(url, init = {}, timeoutMs = 15000) {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        return await fetch(url, { ...init, signal: controller.signal });
-      } finally {
-        clearTimeout(id);
-      }
-    }
-
-    function normalizeUrl(u) {
-      try {
-        const url = new URL(String(u || "").trim());
-        const keep = [];
-        for (const [k, v] of url.searchParams.entries()) {
-          if (!String(k).toLowerCase().startsWith("utm_")) keep.push([k, v]);
-        }
-        url.search = "";
-        for (const [k, v] of keep) url.searchParams.append(k, v);
-
-        url.hash = "";
-        url.protocol = "https:";
-        url.hostname = url.hostname.toLowerCase();
-        url.pathname = (url.pathname || "/").replace(/\/+$/, "") || "/";
-        return url.toString();
-      } catch {
-        return String(u || "").trim();
-      }
-    }
-
-    function hostOf(u) {
-      try {
-        return new URL(String(u)).hostname.replace(/^www\./, "").toLowerCase();
-      } catch {
-        return "";
-      }
-    }
-
-    // ✅ allowlist（必要に応じて増やしてOK）
-    const GDELT_ALLOWLIST = new Set([
-      "reuters.com",
-      "bloomberg.com",
-      "ft.com",
-      "wsj.com",
-      "theverge.com",
-      "techcrunch.com",
-      "venturebeat.com",
-      "arstechnica.com",
-      "axios.com",
-      "semafor.com",
-      "economist.com",
-      "nature.com",
-      "science.org",
-      "nytimes.com",
-      "washingtonpost.com",
-      "bbc.co.uk",
-      "bbc.com",
-      // 日本系（任意）
-      "nikkei.com",
-      "itmedia.co.jp",
-      "impress.co.jp",
-      "ascii.jp",
-    ]);
-
-    function isAllowedDomain(u) {
-      const h = hostOf(u);
-      if (!h) return false;
-      for (const d of GDELT_ALLOWLIST) {
-        if (h === d || h.endsWith("." + d)) return true;
-      }
-      return false;
-    }
-
-    function dedupeByUrl(items) {
-      const seen = new Set();
-      const out = [];
-      for (const x of items) {
-        const u = normalizeUrl(
-          x.original_url || x.originalUrl || x.url || x.link || ""
-        );
-        if (!u) continue;
-        if (seen.has(u)) continue;
-        seen.add(u);
-        out.push({ ...x, original_url: u });
-      }
-      return out;
-    }
-
-    // GDELTの 20260213T031500Z を ISOへ / 既にISOならそのまま
-    function toIsoMaybe(s) {
-      const v = String(s || "").trim();
-      const m = v.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
-      if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
-      if (v.includes("-") && v.includes("T")) return v;
-      return v || "";
-    }
-
-    function themeBucket(title = "", body = "") {
-      const t = (title + " " + body).toLowerCase();
-      if (t.match(/policy|regulation|governance|law|ban|commission|ministry|act/))
-        return "policy";
-      if (
-        t.match(
-          /chip|semiconductor|export|controls|supply chain|compute|data center|accelerator|gpu/
-        )
-      )
-        return "compute";
-      if (t.match(/funding|investment|ipo|acquisition|m&a|valuation|round|venture/))
-        return "capital";
-      if (t.match(/copyright|licensing|lawsuit|court|publisher/))
-        return "copyright";
-      if (t.match(/security|safety|bio|misuse|fraud|deepfake/)) return "risk";
-      if (t.match(/openai|google|microsoft|amazon|meta|anthropic|deepmind|nvidia/))
-        return "bigtech";
-      return "general";
-    }
-
-    function pickDiversified(list, limit = 3) {
-      const buckets = new Set();
-      const picked = [];
-      for (const c of list) {
-        const b = themeBucket(c.original_title, c.body || "");
-        if (!buckets.has(b)) {
-          picked.push(c);
-          buckets.add(b);
-        }
-        if (picked.length >= limit) break;
-      }
-      if (picked.length < limit) {
-        for (const c of list) {
-          if (picked.length >= limit) break;
-          if (!picked.find((p) => p.original_url === c.original_url)) picked.push(c);
-        }
-      }
-      return picked.slice(0, limit);
-    }
-
-    // ✅ 取れたら必ず非Guardianを混ぜる（最低1本）
-    function pick3WithSourceGuarantee(allCandidates) {
-      const guardian = allCandidates.filter((x) => x.source === "The Guardian");
-      const nonGuardian = allCandidates.filter((x) => x.source !== "The Guardian");
-
-      // まず非Guardianを多様化しながら最大1本（=混ぜる枠）
-      const picked = [];
-      if (nonGuardian.length > 0) {
-        const ng = pickDiversified(nonGuardian, 1);
-        picked.push(...ng);
-      }
-
-      // 残りは全体から分散して選ぶ
-      const rest = allCandidates.filter(
-        (x) => !picked.find((p) => p.original_url === x.original_url)
-      );
-      const more = pickDiversified(rest, 3 - picked.length);
-
-      const out = dedupeByUrl([...picked, ...more]).slice(0, 3);
-
-      // もし足りないならGuardianで埋める
-      if (out.length < 3) {
-        const fb = pickDiversified(dedupeByUrl(guardian), 3);
-        return fb;
-      }
-      return out;
-    }
-
-    // =========================
-    // 1) Guardian
+    // 2) Guardian：最新候補を多めに取る（分散選択のため）
     // =========================
     const guardianUrl =
       "https://content.guardianapis.com/search" +
-      `?section=technology&order-by=newest&page-size=10` +
-      `&show-fields=headline,trailText,bodyText` +
+      `?section=technology&order-by=newest&page-size=12` +
+      `&show-fields=headline,trailText,bodyText,byline` +
       `&api-key=${encodeURIComponent(guardianKey)}`;
 
-    const guardianRes = await fetchWithTimeout(guardianUrl, {}, 15000);
+    const guardianRes = await fetch(guardianUrl);
     if (!guardianRes.ok) {
       const t = await guardianRes.text().catch(() => "");
       return res.status(502).json({
@@ -253,203 +256,104 @@ module.exports = async function handler(req, res) {
     const results = guardianData?.response?.results;
 
     if (!Array.isArray(results) || results.length === 0) {
-      return res.status(502).json({ error: "Guardian returned no results" });
+      return res
+        .status(502)
+        .json({ error: "Guardian returned no results", raw: guardianData });
     }
 
-    const guardianArticles = results.slice(0, 10).map((a) => ({
+    // 12件からOpenAIに「3件に分散選択」させる
+    const candidates = results.slice(0, 12).map((a) => ({
       original_title: a.webTitle || "",
-      original_url: normalizeUrl(a.webUrl || ""),
-      published_at: toIsoMaybe(a.webPublicationDate || ""),
-      source: "The Guardian",
-      body: String(a?.fields?.trailText || a?.fields?.bodyText || "")
+      original_url: a.webUrl || "",
+      author: a?.fields?.byline || "",
+      body: String(a?.fields?.bodyText || a?.fields?.trailText || "")
         .replace(/\s+/g, " ")
-        .slice(0, 2500),
+        .slice(0, 9000),
     }));
 
     // =========================
-    // 2) GDELT (Doc 2.1)
-    // ✅ “単発”クエリで短語エラー回避＆タイムアウト回避
-    // ✅ 5秒ルールも自然に守れる（単発＋失敗時の待機）
-    // =========================
-    const GDELT_QUERY_SINGLE =
-      '(artificial intelligence OR AI) ' +
-      '(regulation OR governance OR commission OR law OR act OR export OR controls OR semiconductor OR chip OR GPU OR accelerator OR funding OR investment OR valuation OR venture)';
-
-    async function fetchGdeltOnce({ query, maxrecords = 60, timespan = "1d" }) {
-      const base = "https://api.gdeltproject.org/api/v2/doc/doc";
-      const u = new URL(base);
-      u.searchParams.set("query", query);
-      u.searchParams.set("mode", "ArtList");
-      u.searchParams.set("format", "json");
-      u.searchParams.set("maxrecords", String(maxrecords));
-      u.searchParams.set("timespan", timespan);
-
-      // ✅ GDELTは遅い時があるので25秒
-      const r = await fetchWithTimeout(u.toString(), {}, 25000);
-      const text = await r.text().catch(() => "");
-
-      if (!r.ok) {
-        throw new Error(`GDELT HTTP ${r.status}: ${text.slice(0, 220)}`);
-      }
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`GDELT non-JSON response: ${text.slice(0, 220)}`);
-      }
-
-      const arts = Array.isArray(data?.articles) ? data.articles : [];
-      const mapped = arts
-        .map((a) => ({
-          original_title: String(a?.title || "").trim(),
-          original_url: normalizeUrl(a?.url || ""),
-          published_at: toIsoMaybe(a?.seendate || ""),
-          source: "GDELT",
-          language: a?.language || "",
-          body: `${a?.title || ""} ${a?.description || ""}`
-            .replace(/\s+/g, " ")
-            .slice(0, 900),
-        }))
-        .filter((x) => x.original_url && x.original_title);
-
-      // ✅ allowlistで品質安定
-      return mapped.filter((x) => isAllowedDomain(x.original_url));
-    }
-
-    async function fetchGdeltSafeSingle() {
-      // 最大2回（失敗したら5秒待って再試行）
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          return await fetchGdeltOnce({
-            query: GDELT_QUERY_SINGLE,
-            maxrecords: 60,
-            timespan: "1d",
-          });
-        } catch (e) {
-          await sleep(5000);
-          if (attempt === 1) throw e;
-        }
-      }
-      return [];
-    }
-
-    let gdeltItems = [];
-    let gdeltError = null;
-    try {
-      gdeltItems = await fetchGdeltSafeSingle();
-    } catch (e) {
-      gdeltItems = [];
-      gdeltError = e?.message || String(e);
-      console.warn("⚠️ GDELT fetch failed:", gdeltError);
-    }
-
-    // =========================
-    // 3) Merge -> dedupe -> pick final3
-    // =========================
-    const merged = dedupeByUrl([...guardianArticles, ...gdeltItems]);
-    let final3 = pick3WithSourceGuarantee(merged);
-
-    // フォールバック
-    if (final3.length < 3) {
-      const fb = pickDiversified(dedupeByUrl(guardianArticles), 3);
-      final3 = fb;
-    }
-
-    // =========================
-    // 4) OpenAI prompt
+    // 3) Prompts（Score公開を追加）
     // =========================
     const systemPrompt = `
 あなたは冷静で知的な戦略アナリストです。
-「構造で読む、AI戦略ニュース」というコンセプトのもと、感情的・扇動的な表現は一切禁止します。
-出力は必ず「有効なJSONのみ」です。説明文やMarkdownは禁止。
-投資家・経営層が意思決定に使える、高品質な分析を提供してください。
+「構造で読む、AI戦略ニュース」のコンセプトのもと、扇動・誇張・断定しすぎを禁止します。
+出力は必ず「有効なJSONのみ」。説明文やMarkdownは禁止。
+日本市場の視点（規制、産業構造、人材、供給網、資本市場）を必ず含めます。
 `.trim();
 
     const userPrompt = `
-以下の海外AIニュース記事（3本）を、日本語で上質かつ客観的に整理してください。
+以下の海外テック記事候補（最大12件）から、サブテーマが被らないように3件を選び、日本語で上質かつ客観的に整理してください。
+可能なら「企業（資金/競争）」「規制/政策」「技術/供給網」など分散させる。
 
 【絶対ルール】
-・煽らない（「衝撃」「革命的」等の誇張表現禁止）
-・断定しすぎない（「〜とみられる」「〜が示唆される」を使用）
-・主観的評価を書かない（客観的事実と分析のみ）
-・3本はサブテーマが被らないように分散（規制/投資/供給網/競争など）
+・煽らない（「衝撃」「革命的」等は禁止）
+・断定しすぎない（「〜とみられる」「〜が示唆される」）
+・主観評価禁止（事実と分析）
+・impact_level は厳密
+  - High: 市場・政策・地政学レベルで構造影響
+  - Medium: 業界/大手企業単位
+  - Low: 限定的/話題性中心
+・Highは最大1件（本当に明確な場合のみ）
 
-【Importance Score（0-100）採点ルール（厳守）】
-下記4軸の合計＝importance_score（0-100）。各軸点数も必ず出す。
-1) market_impact（0-40）: 市場構造/競争地図/供給網への影響
-2) business_impact（0-30）: 経営判断（投資/提携/価格/組織）への影響
-3) japan_relevance（0-20）: 日本市場・日本企業・規制・産業への波及
-4) confidence（0-10）: 情報確度（一次情報/複数ソース/数字の明確さ）
-注意：90以上は“業界転換点級”のみ。インフレ禁止。
+【Score（公開する前提）】
+importance_score: 0〜100（整数）
+score_breakdown:
+  market_impact: 0-40
+  business_impact: 0-30
+  japan_relevance: 0-20
+  confidence: 0-10
+合計がimportance_scoreになるようにする（厳守）。
+confidenceは情報の確からしさ（一次情報/複数報道/憶測の度合い）で調整。
 
-【タグ（tags）ルール】
-各記事3〜6個。英語の短いタグで統一（例：Regulation, Chips, Funding, Japan, Europe, Security）。
-
-【出力形式（JSONのみ）】
+【出力形式（厳守）】
 {
-  "date_iso": "YYYY-MM-DD",
-  "items": [
+  "date_iso":"YYYY-MM-DD",
+  "items":[
     {
-      "impact_level": "High|Medium|Low",
+      "impact_level":"High|Medium|Low",
       "importance_score": 0,
-      "score_breakdown": {
-        "market_impact": 0,
-        "business_impact": 0,
-        "japan_relevance": 0,
-        "confidence": 0
-      },
-      "title_ja": "簡潔で品のある日本語タイトル",
-      "one_sentence": "1文要約",
-      "why_it_matters": "なぜ経営判断に関係するか（1-2文）",
-      "japan_impact": "日本への具体的影響（2-3点、短く）",
-      "tags": ["Tag1","Tag2","Tag3"],
-      "fact_summary": ["..."],
-      "implications": ["..."],
-      "outlook": ["..."],
-      "original_title": "string",
-      "original_url": "string",
-      "published_at": "ISO string or empty",
-      "source": "string"
+      "score_breakdown": { "market_impact":0, "business_impact":0, "japan_relevance":0, "confidence":0 },
+      "title_ja":"簡潔で品のある日本語タイトル",
+      "one_sentence":"1文要約（知的トーン）",
+      "why_it_matters":"なぜ重要か（2-3文）",
+      "japan_impact":"日本市場への影響（2-3文、具体）",
+      "tags":["短いタグを3つまで"],
+      "fact_summary":["2-4項目"],
+      "implications":["2-4項目"],
+      "outlook":["2-4項目"],
+      "original_title":"string",
+      "original_url":"string"
     }
   ]
 }
 
 【追加ルール】
-・itemsは必ず3件
-・配列（fact_summary/implications/outlook）は各2〜4項目
-・impact_level は importance_score と整合（基本）
-  - 90-100: High（基本）
-  - 70-89: Medium（基本）
-  - 0-69: Low（基本）
-・各項目は簡潔に（1項目50文字以内を目安）
+・items は必ず3件
+・各配列（fact_summary, implications, outlook）は2〜4項目
+・各項目は簡潔に（1項目あたり50文字以内推奨）
 
-Articles JSON:
-${JSON.stringify(final3)}
+Candidates JSON:
+${JSON.stringify(candidates)}
 `.trim();
 
     // =========================
-    // 5) OpenAI call
+    // 4) OpenAI call（JSON強制）
     // =========================
-    const openaiRes = await fetchWithTimeout(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          temperature: 0.2,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
+    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiKey}`,
       },
-      35000
-    );
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
 
     if (!openaiRes.ok) {
       const t = await openaiRes.text().catch(() => "");
@@ -469,7 +373,7 @@ ${JSON.stringify(final3)}
     }
 
     // =========================
-    // 6) Parse JSON safely
+    // 5) Parse JSON safely
     // =========================
     const cleaned = String(rawText)
       .trim()
@@ -493,117 +397,69 @@ ${JSON.stringify(final3)}
     }
 
     // =========================
-    // 7) Post-processing hardening
+    // 6) Score整合性チェック（ズレてたら補正）
     // =========================
-    const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-    const toInt = (v) => {
-      const n = Number(v);
-      return Number.isFinite(n) ? Math.round(n) : null;
-    };
-    const ensureTags = (tags) => {
-      if (!Array.isArray(tags)) return [];
-      const cleaned2 = tags
-        .map((t) => String(t || "").trim())
-        .filter(Boolean)
-        .slice(0, 6);
-      return Array.from(new Set(cleaned2));
-    };
-    const levelFromScore = (score) => (score >= 90 ? "High" : score >= 70 ? "Medium" : "Low");
+    function clampInt(n, min, max) {
+      const x = Number.isFinite(+n) ? Math.round(+n) : 0;
+      return Math.max(min, Math.min(max, x));
+    }
 
-    // 元記事マップ（source/published補完用）
-    const srcMap = new Map(final3.map((a) => [normalizeUrl(a.original_url), a]));
+    for (const it of payload.items) {
+      const sb = it.score_breakdown || {};
+      const mi = clampInt(sb.market_impact, 0, 40);
+      const bi = clampInt(sb.business_impact, 0, 30);
+      const jr = clampInt(sb.japan_relevance, 0, 20);
+      const cf = clampInt(sb.confidence, 0, 10);
+      const sum = mi + bi + jr + cf;
+      it.score_breakdown = { market_impact: mi, business_impact: bi, japan_relevance: jr, confidence: cf };
+      it.importance_score = sum;
+    }
 
-    payload.items = payload.items.map((it) => {
-      const out = { ...it };
-      out.original_url = normalizeUrl(out.original_url || "");
-      const src = srcMap.get(out.original_url);
+    // impactの並びを安定化（High→Medium→Low、同スコアなら高い順）
+    const order = { High: 3, Medium: 2, Low: 1 };
+    payload.items.sort((a, b) => {
+      const o = (order[b.impact_level] || 0) - (order[a.impact_level] || 0);
+      if (o !== 0) return o;
+      return (b.importance_score || 0) - (a.importance_score || 0);
+    });
 
-      // typo rescue
-      if (!out.why_it_matters && out["why_it.matters"]) {
-        out.why_it_matters = out["why_it.matters"];
-        delete out["why_it.matters"];
-      }
+    // メタ
+    payload.date_iso = payload.date_iso || date;
+    payload.generated_at = nowIso();
+    payload.sources = ["The Guardian"];
+    payload.version = "R2-1.0";
+    payload.cache = { hit: false, at: nowIso() };
 
-      // score breakdown
-      const bd = out.score_breakdown || {};
-      const market = clamp(toInt(bd.market_impact) ?? 0, 0, 40);
-      const biz = clamp(toInt(bd.business_impact) ?? 0, 0, 30);
-      const jp = clamp(toInt(bd.japan_relevance) ?? 0, 0, 20);
-      const conf = clamp(toInt(bd.confidence) ?? 0, 0, 10);
+    // =========================
+    // 7) R2保存（latest + daily + raw）
+    // =========================
+    if (r2Enabled) {
+      const dailyKey = `daily/${payload.date_iso}.json`;
+      const rawKey = `raw/${payload.date_iso}.json`;
 
-      out.score_breakdown = {
-        market_impact: market,
-        business_impact: biz,
-        japan_relevance: jp,
-        confidence: conf,
+      // rawは候補も保存（再現性用）
+      const rawPayload = {
+        date_iso: payload.date_iso,
+        generated_at: payload.generated_at,
+        candidates_count: candidates.length,
+        candidates,
       };
-      out.importance_score = clamp(
-        toInt(out.importance_score) ?? market + biz + jp + conf,
-        0,
-        100
-      );
 
-      out.impact_level = ["High", "Medium", "Low"].includes(out.impact_level)
-        ? out.impact_level
-        : levelFromScore(out.importance_score);
+      await r2PutJson("latest.json", payload).catch(() => {});
+      await r2PutJson(dailyKey, payload).catch(() => {});
+      await r2PutJson(rawKey, rawPayload).catch(() => {});
+    }
 
-      out.tags = ensureTags(out.tags);
-
-      // 補完
-      out.source = out.source || src?.source || "";
-      out.published_at = toIsoMaybe(out.published_at || src?.published_at || "");
-
-      for (const f of ["fact_summary", "implications", "outlook"]) {
-        if (!Array.isArray(out[f])) out[f] = [];
-        out[f] = out[f].map((x) => String(x || "").trim()).filter(Boolean).slice(0, 4);
-        if (out[f].length < 2) {
-          out[f] = out[f]
-            .concat(["情報が限定的なため追加確認が必要", "一次情報の更新を注視"])
-            .slice(0, 2);
-        }
-      }
-
-      for (const k of ["title_ja", "one_sentence", "why_it_matters", "japan_impact", "original_title"]) {
-        if (typeof out[k] === "string") out[k] = out[k].trim();
-      }
-
-      return out;
-    });
-
-    // importance順
-    payload.items.sort((a, b) => (Number(b.importance_score) || 0) - (Number(a.importance_score) || 0));
-
-    // ✅ High最大1件を強制
-    let highCount = 0;
-    payload.items = payload.items.map((it) => {
-      const out = { ...it };
-      if (out.impact_level === "High") {
-        highCount++;
-        if (highCount > 1) out.impact_level = "Medium";
-      }
-      return out;
-    });
-
-    payload.generated_at = new Date().toISOString();
-    payload.version = "A-GDELT-6.0";
-    payload.sources = Array.from(new Set(payload.items.map((x) => x.source).filter(Boolean)));
-
+    // =========================
+    // 8) Return（debugなら候補数など付加）
+    // =========================
     if (debug) {
       return res.status(200).json({
         ...payload,
         debug: {
-          gdelt_used: gdeltItems.length,
-          gdelt_error: gdeltError,
-          merged_candidates: merged.length,
-          picked: final3.map((a) => ({
-            source: a.source,
-            original_title: a.original_title,
-            original_url: a.original_url,
-            published_at: a.published_at,
-            host: hostOf(a.original_url),
-          })),
-          queries: [GDELT_QUERY_SINGLE],
-          allowlist_size: GDELT_ALLOWLIST.size,
+          r2Enabled,
+          dateParam: date,
+          candidates_count: candidates.length,
         },
       });
     }
