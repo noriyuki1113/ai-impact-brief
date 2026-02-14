@@ -8,12 +8,10 @@ export const config = { runtime: "nodejs" };
 /**
  * BUILD_ID: プロダクトのアイデンティティ
  */
-const BUILD_ID = "STRATEGIC_AI_BRIEF_V8_RESPONSES_SCHEMA";
+const BUILD_ID = "STRATEGIC_AI_BRIEF_V9_RESPONSES_SCHEMA_TEMP_SAFE";
 
 /**
  * ====== Tunables ======
- * Vercel は実行時間/ネットワーク状況で abort になりやすいので、
- * 「全体予算」「個別timeout」「AI呼び出しに必要な残り時間」を管理します。
  */
 const OUTPUT_MAIN = 3; // メイン3本
 const OUTPUT_OPS = 1; // 重要運用(セキュリティ等)を1本まで
@@ -26,18 +24,12 @@ const MIN_AI_REMAIN_MS = 9000; // AIコールに必要な最低残時間
 
 /**
  * ====== Data sources ======
- * 「1サイトだけ」になりにくいように RSS を厚めにし、Guardian は任意(あれば追加)に。
  */
 const RSS_SOURCES = [
-  // Official / primary
   { name: "OpenAI", url: "https://openai.com/blog/rss/", jp: false, weight: 1.0, hint: "product" },
   { name: "Anthropic", url: "https://www.anthropic.com/news/rss.xml", jp: false, weight: 0.95, hint: "product" },
   { name: "DeepMind", url: "https://deepmind.google/blog/rss.xml", jp: false, weight: 0.9, hint: "research" },
-
-  // Market / media
   { name: "TechCrunch AI", url: "https://techcrunch.com/tag/artificial-intelligence/feed/", jp: false, weight: 0.8, hint: "market" },
-
-  // Japan
   { name: "ITmedia AI+", url: "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml", jp: true, weight: 1.0, hint: "japan" },
   { name: "ITmedia Enterprise", url: "https://rss.itmedia.co.jp/rss/2.0/enterprise.xml", jp: true, weight: 0.9, hint: "security" },
   { name: "AINOW", url: "https://ainow.ai/feed/", jp: true, weight: 0.7, hint: "product" },
@@ -45,8 +37,6 @@ const RSS_SOURCES = [
 
 /**
  * ====== Allowlist (host) ======
- * RSSは外部リンクを含む場合があるため、ホストで制限。
- * 追加したいホストが出たらここに入れるだけでOK。
  */
 const ALLOW_HOSTS = new Set([
   "openai.com",
@@ -67,22 +57,18 @@ const ALLOW_HOSTS = new Set([
 
 /**
  * ====== In-memory cache ======
- * Note: サーバレスはインスタンスが変わることがあるため「ベストエフォート」。
  */
 let CACHE = { at: 0, payload: null, etag: "" };
 
 /* ----------------------- small utils ----------------------- */
 
 function nowIsoDateJST() {
-  // JST固定（Asia/Tokyo）
-  // 「YYYY-MM-DD」だけ使う
   const d = new Date();
   const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
   return jst.toISOString().slice(0, 10);
 }
 
 function sha1Like(s) {
-  // 速い疑似hash（ETag用）
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -116,7 +102,6 @@ function allowlisted(url) {
   const host = safeHost(url);
   if (!host) return false;
   if (ALLOW_HOSTS.has(host)) return true;
-  // サブドメイン許可（例: x.theguardian.com）
   for (const h of ALLOW_HOSTS) {
     if (host === h) return true;
     if (host.endsWith(`.${h}`)) return true;
@@ -130,12 +115,6 @@ function timeoutFetch(url, opts = {}, timeoutMs = FETCH_TIMEOUT_MS) {
   return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-/**
- * “This operation was aborted” 対策：
- * 1) 全体予算を超えない
- * 2) 個別Abort
- * 3) AI呼び出し前に残時間をチェックして、厳しければフォールバックに切り替える
- */
 function remainingMs(startMs) {
   return Math.max(0, BUDGET_MS - (Date.now() - startMs));
 }
@@ -146,7 +125,6 @@ function guessTopic(title, hint) {
   const raw = title || "";
   const t = raw.toLowerCase();
 
-  // 「方法」「手法」は“規制/法”判定から除外したい
   const containsMethodWords = raw.includes("方法") || raw.includes("手法");
 
   const isRegulation =
@@ -164,33 +142,23 @@ function guessTopic(title, hint) {
 }
 
 function scoreCandidate(c) {
-  // 0..100に寄せる
   let s = 40;
-
-  // ソース重み（一次情報・信頼・重要度）
   s += Math.round((c.weight || 0.8) * 20);
-
-  // 日本ソースは加点
   if (c.jp) s += 15;
-
-  // タイトルに日本の制度・省庁等
   if (/japan|日本|国内|公取委|総務省|経産省|デジタル/.test(c.title || "")) s += 15;
 
-  // トピック別の構造インパクト
   const bonus = { regulation: 20, funding: 15, supply_chain: 15, security: 18, product: 6, research: 6 };
   s += bonus[c.topic] || 0;
 
-  // 上限・下限
   s = Math.max(0, Math.min(95, s));
 
-  // breakdown は “公開Score” 用に安定して返す（合計は厳密に一致させない）
   return {
     score: s,
     breakdown: {
       market_impact: Math.min(40, Math.round(s * 0.4)),
       business_impact: Math.min(30, Math.round(s * 0.3)),
       japan_relevance: Math.min(25, c.jp ? 20 : 10),
-      confidence: 6, // “速報” 前提で控えめ
+      confidence: 6,
     },
   };
 }
@@ -267,32 +235,19 @@ function enrichAndSort(candidates) {
       const topic = guessTopic(c.title, c.hint);
       const { score, breakdown } = scoreCandidate({ ...c, topic });
       const host = safeHost(c.url);
-      return {
-        ...c,
-        host,
-        topic,
-        importance_score: score,
-        score_breakdown: breakdown,
-      };
+      return { ...c, host, topic, importance_score: score, score_breakdown: breakdown };
     })
     .sort((a, b) => b.importance_score - a.importance_score);
 }
 
-/**
- * メイン(3本)は「ホスト分散」「トピック分散」優先。
- * ops(1本)は security を優先し、メインと被らないものがあればそれを採用。
- */
 function pickMainAndOps(enriched) {
   const main = [];
   const usedHosts = new Set();
   const usedTopics = new Set();
 
-  // 1) main pick with diversity
   for (const c of enriched) {
     if (main.length >= OUTPUT_MAIN) break;
     if (!c.host) continue;
-
-    // 同一ホストNG、同一トピックは最大1
     if (usedHosts.has(c.host)) continue;
     if (usedTopics.has(c.topic)) continue;
 
@@ -301,13 +256,11 @@ function pickMainAndOps(enriched) {
     usedTopics.add(c.topic);
   }
 
-  // 2) fill main if不足（多様性条件を緩める）
   for (const c of enriched) {
     if (main.length >= OUTPUT_MAIN) break;
     if (!main.find((m) => m.url === c.url)) main.push(c);
   }
 
-  // 3) ops pick (security 優先)
   let ops = null;
   const securityCandidates = enriched.filter((c) => c.topic === "security");
   for (const c of securityCandidates) {
@@ -316,17 +269,17 @@ function pickMainAndOps(enriched) {
     break;
   }
 
-  // fallback: それでも無ければ null
   return { main: main.slice(0, OUTPUT_MAIN), ops };
 }
 
 /* ----------------------- OpenAI (Responses API) ----------------------- */
 
-/**
- * Responses API + text.format(json_schema)
- * ここが “response_format” ではなく “text.format” になります。
- * （OpenAIの移行ガイドに準拠）
- */
+function parseOptionalNumber(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function callOpenAIResponsesJSON({ openaiKey, model, main, ops, startMs, debug }) {
   const remain = remainingMs(startMs);
   if (remain < MIN_AI_REMAIN_MS) {
@@ -362,29 +315,10 @@ ${JSON.stringify({ main_candidates: main, ops_candidate: ops ? [ops] : [] })}
       additionalProperties: false,
       properties: {
         date_iso: { type: "string", minLength: 10, maxLength: 10 },
-        items: {
-          type: "array",
-          minItems: OUTPUT_MAIN,
-          maxItems: OUTPUT_MAIN,
-          items: { $ref: "#/$defs/item" },
-        },
-        main_items: {
-          type: "array",
-          minItems: OUTPUT_MAIN,
-          maxItems: OUTPUT_MAIN,
-          items: { $ref: "#/$defs/item" },
-        },
-        ops_items: {
-          type: "array",
-          minItems: 0,
-          maxItems: 1,
-          items: { $ref: "#/$defs/item" },
-        },
-        sources: {
-          type: "array",
-          minItems: 1,
-          items: { type: "string" },
-        },
+        items: { type: "array", minItems: OUTPUT_MAIN, maxItems: OUTPUT_MAIN, items: { $ref: "#/$defs/item" } },
+        main_items: { type: "array", minItems: OUTPUT_MAIN, maxItems: OUTPUT_MAIN, items: { $ref: "#/$defs/item" } },
+        ops_items: { type: "array", minItems: 0, maxItems: 1, items: { $ref: "#/$defs/item" } },
+        sources: { type: "array", minItems: 1, items: { type: "string" } },
       },
       required: ["date_iso", "items", "main_items", "ops_items", "sources"],
       $defs: {
@@ -440,9 +374,33 @@ ${JSON.stringify({ main_candidates: main, ops_candidate: ops ? [ops] : [] })}
     },
   };
 
+  // 重要: temperature が未対応のモデルがあるため、環境変数がある時だけ付ける
+  // 例) OPENAI_TEMPERATURE=0.2
+  const temp = parseOptionalNumber(process.env.OPENAI_TEMPERATURE);
+
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), Math.min(OPENAI_TIMEOUT_MS, remain - 250));
+
   try {
+    const body = {
+      model,
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: schema.name,
+          strict: true,
+          schema: schema.schema,
+        },
+      },
+    };
+
+    // temperature は “明示指定されたときのみ” 付ける
+    if (temp != null) body.temperature = temp;
+
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -450,22 +408,7 @@ ${JSON.stringify({ main_candidates: main, ops_candidate: ops ? [ops] : [] })}
         Authorization: `Bearer ${openaiKey}`,
       },
       signal: controller.signal,
-      body: JSON.stringify({
-        model,
-        input: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.2,
-        text: {
-          format: {
-            type: "json_schema",
-            name: schema.name,
-            strict: true,
-            schema: schema.schema,
-          },
-        },
-      }),
+      body: JSON.stringify(body),
     });
 
     const status = r.status;
@@ -474,8 +417,6 @@ ${JSON.stringify({ main_candidates: main, ops_candidate: ops ? [ops] : [] })}
       return { ok: false, status, error: `OpenAI HTTP ${status}`, raw_preview: raw.slice(0, 800) };
     }
 
-    // Responses API は output_text が便利（JSON文字列が返る）
-    // ただし実装差異がある可能性があるので安全に両方見る
     let data = null;
     try {
       data = JSON.parse(raw);
@@ -499,7 +440,6 @@ ${JSON.stringify({ main_candidates: main, ops_candidate: ops ? [ops] : [] })}
       return { ok: false, status, error: "Model returned non-JSON text", raw_preview: textOut.slice(0, 800) };
     }
 
-    // 最低限の整形（dateなど）
     parsed.date_iso = parsed.date_iso || nowIsoDateJST();
     return { ok: true, json: parsed, status, debug_raw_preview: debug ? textOut.slice(0, 1200) : "" };
   } catch (e) {
@@ -509,10 +449,9 @@ ${JSON.stringify({ main_candidates: main, ops_candidate: ops ? [ops] : [] })}
   }
 }
 
-/* ----------------------- payload builders ----------------------- */
+/* ----------------------- fallback builders ----------------------- */
 
 function impactLevelFromTopic(topic, score) {
-  // “Highは乱発しない” 前提の控えめルール
   if (topic === "regulation" || topic === "security") return score >= 88 ? "High" : "Medium";
   if (topic === "supply_chain" || topic === "funding") return score >= 90 ? "High" : "Medium";
   if (topic === "product" || topic === "research") return "Medium";
@@ -526,7 +465,7 @@ function fallbackItemFromCandidate(c) {
     impact_level: impact,
     importance_score: c.importance_score,
     score_breakdown: c.score_breakdown,
-    title_ja: (c.jp ? c.title : c.title).slice(0, 60),
+    title_ja: (c.title || "").slice(0, 60),
     one_sentence: (c.summary || c.title || "").slice(0, 120) || "要点は元記事参照。",
     why_it_matters: "市場構造・競争条件・投資判断に波及し得るため。",
     japan_impact: c.jp
@@ -546,7 +485,6 @@ function fallbackItemFromCandidate(c) {
 function assembleFallbackPayload({ main, ops }) {
   const items = main.map(fallbackItemFromCandidate);
   const main_items = [...items];
-
   const ops_items = [];
   if (ops) ops_items.push(fallbackItemFromCandidate(ops));
 
@@ -590,7 +528,7 @@ export default async function handler(req, res) {
 
   const openaiKey = process.env.OPENAI_API_KEY;
   const guardianKey = process.env.GUARDIAN_API_KEY || "";
-  const openaiModel = process.env.OPENAI_MODEL || "gpt-5"; // アクセスが無ければ "gpt-4o-mini" などに変更
+  const openaiModel = process.env.OPENAI_MODEL || "gpt-5"; // アクセスが無ければ "gpt-4o-mini" 等へ
 
   if (!openaiKey) return res.status(500).json({ error: "OPENAI_API_KEY is missing" });
 
@@ -600,18 +538,17 @@ export default async function handler(req, res) {
     if (inm && CACHE.etag && inm === CACHE.etag) return res.status(304).end();
 
     res.setHeader("ETag", CACHE.etag);
-    const out = { ...CACHE.payload, cache: { hit: true, ttl_seconds: Math.max(0, Math.floor((CACHE_TTL_MS - (Date.now() - CACHE.at)) / 1000)) } };
+    const out = {
+      ...CACHE.payload,
+      cache: { hit: true, ttl_seconds: Math.max(0, Math.floor((CACHE_TTL_MS - (Date.now() - CACHE.at)) / 1000)) },
+    };
     return res.status(200).json(out);
   }
 
   try {
     // 1) Fetch candidates in parallel
     const parser = new Parser();
-
-    const tasks = [
-      fetchGuardian(guardianKey),
-      ...RSS_SOURCES.map((src) => fetchRssSafe(parser, src)),
-    ];
+    const tasks = [fetchGuardian(guardianKey), ...RSS_SOURCES.map((src) => fetchRssSafe(parser, src))];
 
     const settled = await Promise.allSettled(tasks);
 
@@ -621,7 +558,7 @@ export default async function handler(req, res) {
       .map((c) => ({ ...c, url: normalizeUrl(c.url) }))
       .filter((c) => c.url && c.title && allowlisted(c.url));
 
-    // 2) Deduplicate (by normalized url)
+    // 2) Deduplicate (by url)
     const seen = new Set();
     const deduped = [];
     for (const c of rawCandidates) {
@@ -633,11 +570,9 @@ export default async function handler(req, res) {
 
     // 3) Enrich + pick
     const enriched = enrichAndSort(deduped);
-
-    // Poolが少なすぎる場合でも最低3本は返す（可能な範囲で）
     const { main, ops } = pickMainAndOps(enriched);
 
-    // 4) If AI budget OK => call OpenAI Responses(JSON Schema). Else => fallback
+    // 4) AI call (Responses JSON Schema) or fallback
     let finalPayload = null;
     let openaiDebug = { ok: false, status: 0, error: null, raw_preview: "" };
 
@@ -658,8 +593,10 @@ export default async function handler(req, res) {
       openaiDebug = { ok: false, status: aiResult.status || 0, error: aiResult.error || "unknown", raw_preview: aiResult.raw_preview || "" };
     }
 
-    // 5) Add metadata (always)
-    const sources = Array.from(new Set([...(finalPayload.sources || []), ...main.map((x) => x.source), ...(ops ? [ops.source] : [])]));
+    // 5) Add metadata
+    const sources = Array.from(
+      new Set([...(finalPayload.sources || []), ...main.map((x) => x.source), ...(ops ? [ops.source] : [])])
+    );
     finalPayload.sources = sources;
 
     finalPayload.generated_at = new Date().toISOString();
@@ -672,7 +609,6 @@ export default async function handler(req, res) {
     // 6) Cache
     const etag = `"${sha1Like(JSON.stringify(finalPayload))}"`;
     CACHE = { at: Date.now(), payload: finalPayload, etag };
-
     res.setHeader("ETag", etag);
 
     // 7) Debug extras
@@ -696,6 +632,7 @@ export default async function handler(req, res) {
             min_ai_remain: MIN_AI_REMAIN_MS,
           },
           remaining_ms_before_return: remainingMs(startMs),
+          note: "temperatureはOPENAI_TEMPERATUREを設定した時だけ送信（モデル非対応エラー回避）",
         },
       });
     }
