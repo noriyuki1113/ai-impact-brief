@@ -1,0 +1,39 @@
+name: Generate today.json
+
+on:
+  workflow_dispatch:
+  schedule:
+    # JST 07:10 = UTC 22:10（前日）
+    - cron: "10 22 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate today.json
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: gpt-4o-mini
+        run: |
+          python scripts/generate_today.py
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "ai-impact-bot"
+          git config user.email "ai-impact-bot@users.noreply.github.com"
+          git add public/today.json public/archive/*.json || true
+          git diff --cached --quiet || (git commit -m "chore: update today.json" && git push)
