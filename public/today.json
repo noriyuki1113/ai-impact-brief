@@ -1,0 +1,50 @@
+{
+  "date_iso": "2026-02-14",
+  "items": [
+    {
+      "impact_level": "Medium",
+      "importance_score": 60,
+      "score_breakdown": { "market_impact": 20, "business_impact": 20, "japan_relevance": 15, "confidence": 5 },
+      "title_ja": "準備中：初回生成待ち",
+      "one_sentence": "GitHub Actionsで自動生成されます。",
+      "fact_summary": ["公開直後はこの表示になります。", "数分後に更新されます。"],
+      "implications": ["/api/today は public/today.json を返します。"],
+      "outlook": ["Actions実行後に最新3本に置き換わります。"],
+      "original_title": "Boot payload",
+      "original_url": "https://ai-impact-brief.vercel.app/",
+      "published_at": "2026-02-14T00:00:00Z",
+      "source": "Bootstrap"
+    },
+    {
+      "impact_level": "Low",
+      "importance_score": 40,
+      "score_breakdown": { "market_impact": 10, "business_impact": 10, "japan_relevance": 15, "confidence": 5 },
+      "title_ja": "RSS混在版に切替済み",
+      "one_sentence": "複数ソースから候補を集めて3本に分散します。",
+      "fact_summary": ["OpenAI/TechCrunch/国内RSSなど混在。"],
+      "implications": ["1サイト依存から脱却します。"],
+      "outlook": ["今後、精度を上げます。"],
+      "original_title": "RSS mixed mode",
+      "original_url": "https://ai-impact-brief.vercel.app/",
+      "published_at": "2026-02-14T00:00:00Z",
+      "source": "Bootstrap"
+    },
+    {
+      "impact_level": "Low",
+      "importance_score": 35,
+      "score_breakdown": { "market_impact": 10, "business_impact": 10, "japan_relevance": 10, "confidence": 5 },
+      "title_ja": "スコア公開は後から調整可能",
+      "one_sentence": "日本市場重みを調整して説得力を上げられます。",
+      "fact_summary": ["0-100点＋内訳（市場/事業/日本/確度）。"],
+      "implications": ["編集方針の透明性が上がります。"],
+      "outlook": ["毎日同じ基準で採点します。"],
+      "original_title": "Scoring",
+      "original_url": "https://ai-impact-brief.vercel.app/",
+      "published_at": "2026-02-14T00:00:00Z",
+      "source": "Bootstrap"
+    }
+  ],
+  "generated_at": "2026-02-14T00:00:00Z",
+  "version": "B1-BOOT-1.0",
+  "sources": ["Bootstrap"]
+}
