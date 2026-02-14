@@ -1,5 +1,5 @@
 // api/today.js
-// STRATEGIC_AI_BRIEF_V6 — Stable + AbortSafe + Main(3) + Ops(1)
+// STRATEGIC_AI_BRIEF_V6_1 — AbortSafe tuned (Main3 + Ops1)
 
 const Parser = require("rss-parser");
 
@@ -14,35 +14,31 @@ module.exports = async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
 
-  // ===== Build Identity =====
-  const BUILD_ID = "STRATEGIC_AI_BRIEF_V6_MAIN3_OPS1_ABORTSAFE";
+  const BUILD_ID = "STRATEGIC_AI_BRIEF_V6_1_ABORTSAFE_TUNED";
 
-  // ===== Tunables =====
-  const OUTPUT_MAIN = 3;   // 本編
-  const OUTPUT_OPS = 1;    // 実務/ツール枠
-  const FETCH_TIMEOUT_MS = 4500;     // RSS/Guardianを短めに
-  const OPENAI_TIMEOUT_MS = 30000;   // OpenAIは少し長めに
-  const CACHE_TTL_MS = 15 * 60 * 1000; // 15分
-  const MIN_AI_REMAIN_MS = 9000;     // これ未満ならAI呼ばない（abort回避）
-  const FUNC_BUDGET_MS = 25000;      // この関数は最大25秒で動かす想定（保守的）
+  // ===== Tunables (tuned to avoid abort) =====
+  const OUTPUT_MAIN = 3;
+  const OUTPUT_OPS = 1;
 
-  // ===== Keys =====
-  const guardianKey = process.env.GUARDIAN_API_KEY;
+  const FETCH_TIMEOUT_MS = 4200;
+  const OPENAI_TIMEOUT_MS = 12000;      // ★短く現実的に
+  const CACHE_TTL_MS = 15 * 60 * 1000;
+
+  // ★Vercel maxDuration 20秒でも落ちにくい予算
+  const FUNC_BUDGET_MS = 18000;
+  const MIN_AI_REMAIN_MS = 14000;       // ★AI呼ぶなら余裕を大きく
+
+  const guardianKey = process.env.GUARDIAN_API_KEY; // optional
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) return res.status(500).json({ error: "OPENAI_API_KEY is missing" });
-  // Guardianは任意（RSSだけでも動く）。無い場合はGuardianをスキップ
-  // if (!guardianKey) return res.status(500).json({ error: "GUARDIAN_API_KEY is missing" });
 
-  // ===== Debug flag =====
   const urlObj = new URL(req.url, "https://example.com");
   const debug = urlObj.searchParams.get("debug") === "1";
 
-  // ===== In-memory cache (per lambda warm instance) =====
-  // NOTE: Vercel serverless is ephemeral; cache is best-effort only.
+  // ===== cache (best-effort) =====
   global.__AIBRIEF_CACHE__ = global.__AIBRIEF_CACHE__ || { at: 0, payload: null, etag: "" };
   const CACHE = global.__AIBRIEF_CACHE__;
 
-  // ETag short-circuit
   if (CACHE.payload && Date.now() - CACHE.at < CACHE_TTL_MS) {
     if (req.headers["if-none-match"] && req.headers["if-none-match"] === CACHE.etag) {
       return res.status(304).end();
@@ -53,16 +49,13 @@ module.exports = async function handler(req, res) {
 
   const startedAt = Date.now();
 
-  // ===== Data Sources =====
   const RSS_SOURCES = [
-    { name: "OpenAI",       url: "https://openai.com/blog/rss/",                         jp: false, weight: 1.00, hint: "product" },
-    { name: "Anthropic",    url: "https://www.anthropic.com/news/rss.xml",               jp: false, weight: 0.95, hint: "product" },
-    { name: "DeepMind",     url: "https://deepmind.google/blog/rss.xml",                 jp: false, weight: 0.90, hint: "research" },
-    { name: "TechCrunch AI",url: "https://techcrunch.com/tag/artificial-intelligence/feed/", jp:false, weight: 0.80, hint: "market" },
-
-    // 日本ソース（強い）
-    { name: "ITmedia AI+",  url: "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",         jp: true,  weight: 1.00, hint: "japan" },
-    { name: "AINOW",        url: "https://ainow.ai/feed/",                               jp: true,  weight: 0.70, hint: "product" }
+    { name: "OpenAI",        url: "https://openai.com/blog/rss/",                          jp: false, weight: 1.00, hint: "product" },
+    { name: "Anthropic",     url: "https://www.anthropic.com/news/rss.xml",                jp: false, weight: 0.95, hint: "product" },
+    { name: "DeepMind",      url: "https://deepmind.google/blog/rss.xml",                  jp: false, weight: 0.90, hint: "research" },
+    { name: "TechCrunch AI", url: "https://techcrunch.com/tag/artificial-intelligence/feed/", jp: false, weight: 0.80, hint: "market" },
+    { name: "ITmedia AI+",   url: "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",          jp: true,  weight: 1.00, hint: "japan" },
+    { name: "AINOW",         url: "https://ainow.ai/feed/",                                jp: true,  weight: 0.70, hint: "product" }
   ];
 
   const ALLOW_HOSTS = [
@@ -75,7 +68,7 @@ module.exports = async function handler(req, res) {
     "ainow.ai"
   ];
 
-  // ===== Utilities =====
+  // ===== utils =====
   const sha1Like = (s) => {
     let h = 2166136261;
     for (let i = 0; i < s.length; i++) {
@@ -103,7 +96,6 @@ module.exports = async function handler(req, res) {
   function hostOf(url) {
     try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
   }
-
   function withinAllowHosts(url) {
     const h = hostOf(url);
     return ALLOW_HOSTS.some((a) => h === a || h.endsWith("." + a));
@@ -115,52 +107,41 @@ module.exports = async function handler(req, res) {
     return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(id));
   }
 
-  // ===== "HowTo/テンプレ" 除外（本編の質を上げる） =====
   function isHowToish(title) {
     return /(やり方|方法|手順|テンプレ|例文|コピペ|◯選|選\b|完全攻略|入門|初心者|まとめ|徹底解説|効率化テクニック)/.test(title || "");
   }
 
-  // ===== Topic Guess =====
   function guessTopic(title, hint) {
     const t = (title || "").toLowerCase();
-    // 「法」誤検知対策：(?<![方手])法
     const isReg = /regulat|law|act|ban|suit|court|antitrust|訴訟|規制|法案|司法|裁判|(?<![方手])法/.test(t);
     if (isReg) return "regulation";
     if (/fund|financ|valuation|ipo|raises|資金|調達|評価額|上場/.test(t)) return "funding";
     if (/chip|gpu|semiconductor|export|nvidia|tsmc|半導体|輸出|サプライ/.test(t)) return "supply_chain";
+    if (/security|breach|leak|vulnerab|攻撃|脆弱|漏えい|cvss/.test(t)) return "security";
     if (/model|release|launch|api|tool|product|update|アップデート|公開|提供/.test(t)) return "product";
     if (/research|paper|benchmark|arxiv|研究|論文/.test(t)) return "research";
-    if (/security|breach|leak|vulnerab|攻撃|脆弱|漏えい/.test(t)) return "security";
     return hint || "other";
   }
 
-  // ===== Strategic Scoring =====
   function scoreCandidate(c) {
     let s = 40;
     s += Math.round((c.weight || 0.8) * 20);
     if (c.jp) s += 15;
-
-    // 日本政策/当局/国内ワード加点
     if (/japan|日本|国内|公取委|総務省|経産省|金融庁|個人情報保護|著作権/.test(c.title || "")) s += 15;
 
-    const bonus = { regulation: 20, funding: 15, supply_chain: 15, security: 12, product: 6, research: 6, other: 0 };
+    const bonus = { regulation: 20, funding: 15, supply_chain: 15, security: 16, product: 6, research: 6, other: 0 };
     s += bonus[c.topic] || 0;
 
-    // HowToは「本編」では弱くする（OPS枠へ寄せる）
     if (isHowToish(c.title)) s -= 18;
 
     s = Math.max(0, Math.min(95, s));
 
-    // breakdown（見せる用）
     const marketImpact = Math.min(40, Math.round(s * 0.4));
     const businessImpact = Math.min(30, Math.round(s * 0.3));
     const japanRel = Math.min(25, c.jp ? 20 : 10);
-    const confidence = 6; // AIが後で調整する想定（フォールバックは固定）
+    const confidence = 6;
 
-    return {
-      score: s,
-      breakdown: { market_impact: marketImpact, business_impact: businessImpact, japan_relevance: japanRel, confidence }
-    };
+    return { score: s, breakdown: { market_impact: marketImpact, business_impact: businessImpact, japan_relevance: japanRel, confidence } };
   }
 
   function impactLevelFromScore(score) {
@@ -169,7 +150,6 @@ module.exports = async function handler(req, res) {
     return "Low";
   }
 
-  // ===== Fetchers =====
   async function fetchGuardian(key) {
     if (!key) return [];
     const url =
@@ -178,7 +158,7 @@ module.exports = async function handler(req, res) {
       `&api-key=${encodeURIComponent(key)}`;
 
     try {
-      const res = await timeoutFetch(url, {}, FETCH_TIMEOUT_MS);
+      const res = await timeoutFetch(url);
       if (!res.ok) return [];
       const data = await res.json().catch(() => null);
       const list = data?.response?.results || [];
@@ -198,11 +178,10 @@ module.exports = async function handler(req, res) {
 
   async function fetchRssSafe(parser, src) {
     try {
-      const res = await timeoutFetch(src.url, {}, FETCH_TIMEOUT_MS);
+      const res = await timeoutFetch(src.url);
       if (!res.ok) return [];
       const xml = await res.text();
       const feed = await parser.parseString(xml);
-
       return (feed.items || []).slice(0, 10).map((it) => ({
         source: src.name,
         url: normalizeUrl(it.link),
@@ -217,7 +196,6 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // ===== Dedup =====
   function dedupeCandidates(cands) {
     const seen = new Set();
     const out = [];
@@ -232,37 +210,29 @@ module.exports = async function handler(req, res) {
     return out;
   }
 
-  // ===== Pick Logic: Main(3) =====
   function pickMainDiverse(enriched) {
     const picked = [];
     const usedHosts = new Set();
     const usedTopics = new Set();
-
-    // 本編は HowTo を落としやすくする
     const primaryPool = enriched.filter((c) => !isHowToish(c.title));
 
     for (const c of primaryPool) {
       if (picked.length >= OUTPUT_MAIN) break;
       const h = hostOf(c.url);
       if (!h) continue;
-
-      // 同一ホスト/同一トピックを避ける（多様性）
       if (usedHosts.has(h)) continue;
       if (usedTopics.has(c.topic)) continue;
-
       picked.push(c);
       usedHosts.add(h);
       usedTopics.add(c.topic);
     }
 
-    // 補填（不足分）
     let i = 0;
     while (picked.length < OUTPUT_MAIN && i < primaryPool.length) {
       const c = primaryPool[i++];
       if (!picked.find((p) => p.url === c.url)) picked.push(c);
     }
 
-    // まだ足りないなら、HowTo込みでも補填
     i = 0;
     while (picked.length < OUTPUT_MAIN && i < enriched.length) {
       const c = enriched[i++];
@@ -272,17 +242,15 @@ module.exports = async function handler(req, res) {
     return picked.slice(0, OUTPUT_MAIN);
   }
 
-  // ===== Pick Logic: Ops(1) =====
   function pickOps(enriched, alreadyPickedUrls) {
     const opsPool = enriched
       .filter((c) => !alreadyPickedUrls.has(c.url))
-      .filter((c) => c.jp) // OPS枠は日本の現場寄りを優先
+      .filter((c) => c.jp)
       .filter((c) => isHowToish(c.title) || c.topic === "product" || c.topic === "security")
       .sort((a, b) => b.importance_score - a.importance_score);
 
     if (opsPool.length > 0) return opsPool[0];
 
-    // 代替：日本ソースが無ければ、プロダクト系から1つ
     const alt = enriched
       .filter((c) => !alreadyPickedUrls.has(c.url))
       .filter((c) => c.topic === "product" || c.topic === "security")
@@ -291,7 +259,6 @@ module.exports = async function handler(req, res) {
     return alt || null;
   }
 
-  // ===== Fallback Item =====
   function makeFallbackBriefItem(c) {
     return {
       impact_level: impactLevelFromScore(c.importance_score),
@@ -299,7 +266,7 @@ module.exports = async function handler(req, res) {
       score_breakdown: c.score_breakdown,
 
       title_ja: c.title || "タイトル未取得",
-      one_sentence: (c.summary || c.title || "").slice(0, 80) || "要約情報なし",
+      one_sentence: (c.summary || c.title || "").slice(0, 90) || "要約情報なし",
 
       why_it_matters: "市場構造・競争条件・投資判断に影響し得るため。",
       japan_impact: c.jp ? "日本市場への直接影響が見込まれるため優先監視。" : "海外動向として波及可能性を注視。",
@@ -307,7 +274,7 @@ module.exports = async function handler(req, res) {
       tags: [c.topic],
       fact_summary: [
         `出典: ${c.source}`,
-        `要点: ${(c.summary || c.title || "").slice(0, 80)}`,
+        `要点: ${(c.summary || c.title || "").slice(0, 90)}`,
         "リンク: 元記事参照"
       ],
       implications: [
@@ -326,12 +293,11 @@ module.exports = async function handler(req, res) {
     };
   }
 
-  // ===== OpenAI Briefing (AbortSafe) =====
-  async function callOpenAI(openaiKey, mainPicked, opsPicked) {
+  // ===== OpenAI via Responses API (preferred) =====
+  async function callOpenAIResponses(openaiKey, mainPicked, opsPicked) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
-    // 送る情報は最小限（token削減＝速度UP）
     const pack = {
       main: mainPicked.map((c) => ({
         source: c.source,
@@ -359,36 +325,28 @@ module.exports = async function handler(req, res) {
 
     const system = `
 あなたは「日本市場の視点で、世界のAI戦略ニュースを構造化する」冷静な戦略アナリストです。
-煽り・断定・主観的評価は禁止。事実と示唆を分け、短く濃く書く。
-出力は必ず有効なJSONのみ。Markdown禁止。
+煽り・断定・主観は禁止。短く濃く書く。出力は必ずJSONのみ。
 
-【要件】
-- main_items は必ず3件。ops_items は 0〜1件。
-- main_items は「規制/供給網/資金調達/市場構造」など“上流”を優先。
-- ops_items は「現場の実務・ツール・運用」に寄せる（HowTo系はこちらへ）。
-- fact_summary/implications/outlook は各 2〜4 個。1項目は50文字程度まで。
-- title_ja は品がある日本語。one_sentence は60〜90文字目安。
+要件:
+- main_items は3件固定。ops_items は0〜1件。
+- fact_summary/implications/outlook は各2〜4個。
+- title_ja は品のある日本語。one_sentence は60〜90文字目安。
 - original_url/source/topic/importance_score/score_breakdown は入力値を維持。
 `.trim();
 
     const user = `
 次の候補を、日本市場の視点で「本編3本(main_items) + 実務1本(ops_items)」に整形してください。
-各アイテムに以下を含める:
-impact_level(High/Medium/Low), title_ja, one_sentence, why_it_matters, japan_impact,
-tags(配列), fact_summary(配列), implications(配列), outlook(配列),
+各アイテムの必須キー:
+impact_level, title_ja, one_sentence, why_it_matters, japan_impact,
+tags, fact_summary, implications, outlook,
 original_title, original_url, source, topic, importance_score, score_breakdown
-
-【impact_level 目安】
-- High: 市場/政策/競争条件を変えうる（構造的）
-- Medium: 業界・大手企業単位
-- Low: 限定的/実務寄り（ただし ops_items では許容）
 
 入力JSON:
 ${JSON.stringify(pack)}
 `.trim();
 
     try {
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      const r = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         signal: controller.signal,
         headers: {
@@ -397,35 +355,29 @@ ${JSON.stringify(pack)}
         },
         body: JSON.stringify({
           model: "gpt-4o-mini",
-          temperature: 0.2,
-          response_format: { type: "json_object" },
-          messages: [
+          input: [
             { role: "system", content: system },
             { role: "user", content: user }
-          ]
+          ],
+          temperature: 0.2,
+          // JSON強制（Responsesのjson_schemaが使えない環境もあるので json_object で）
+          response_format: { type: "json_object" }
         })
       });
 
       const text = await r.text().catch(() => "");
-      if (!r.ok) {
-        return { ok: false, status: r.status, error: `OpenAI HTTP ${r.status}`, rawText: text.slice(0, 1200) };
-      }
+      if (!r.ok) return { ok: false, status: r.status, error: `OpenAI HTTP ${r.status}`, rawText: text.slice(0, 1200) };
 
       const data = JSON.parse(text);
-      const raw = data?.choices?.[0]?.message?.content;
-      if (!raw) return { ok: false, status: 502, error: "OpenAI missing content", rawText: text.slice(0, 1200) };
-
-      let obj;
-      try { obj = JSON.parse(raw); }
-      catch { return { ok: false, status: 502, error: "OpenAI returned non-JSON", rawText: raw.slice(0, 1200) }; }
-
-      // 軽い形チェック
-      const main = Array.isArray(obj.main_items) ? obj.main_items : [];
-      const ops = Array.isArray(obj.ops_items) ? obj.ops_items : [];
-      if (main.length !== 3) return { ok: false, status: 502, error: "Schema: main_items must be 3", rawText: raw.slice(0, 1200) };
-      if (ops.length > 1) return { ok: false, status: 502, error: "Schema: ops_items must be 0..1", rawText: raw.slice(0, 1200) };
-
-      return { ok: true, status: 200, json: obj, rawText: raw.slice(0, 800) };
+      const raw = data?.output_text || ""; // Responsesの簡易フィールド
+      if (!raw) {
+        // fallback: output arrayから拾う
+        const o = data?.output?.[0];
+        const maybe = o?.content?.find?.((x) => x?.type === "output_text")?.text;
+        if (!maybe) return { ok: false, status: 502, error: "OpenAI missing output_text", rawText: text.slice(0, 1200) };
+        return parseAiJson(maybe);
+      }
+      return parseAiJson(raw);
     } catch (e) {
       return { ok: false, status: 0, error: e?.message || "This operation was aborted", rawText: "" };
     } finally {
@@ -433,7 +385,19 @@ ${JSON.stringify(pack)}
     }
   }
 
-  // ===== Main execution =====
+  function parseAiJson(raw) {
+    try {
+      const obj = JSON.parse(raw);
+      const main = Array.isArray(obj.main_items) ? obj.main_items : [];
+      const ops = Array.isArray(obj.ops_items) ? obj.ops_items : [];
+      if (main.length !== 3) return { ok: false, status: 502, error: "Schema: main_items must be 3", rawText: raw.slice(0, 1200) };
+      if (ops.length > 1) return { ok: false, status: 502, error: "Schema: ops_items must be 0..1", rawText: raw.slice(0, 1200) };
+      return { ok: true, status: 200, json: obj, rawText: raw.slice(0, 800) };
+    } catch {
+      return { ok: false, status: 502, error: "OpenAI returned non-JSON", rawText: raw.slice(0, 1200) };
+    }
+  }
+
   try {
     const parser = new Parser();
 
@@ -451,7 +415,6 @@ ${JSON.stringify(pack)}
       .map((c) => ({ ...c, url: normalizeUrl(c.url) }))
       .filter((c) => withinAllowHosts(c.url));
 
-    // dedupe + enrich
     const deduped = dedupeCandidates(rawCandidates);
 
     const enriched = deduped.map((c) => {
@@ -460,12 +423,10 @@ ${JSON.stringify(pack)}
       return { ...c, topic, importance_score: score, score_breakdown: breakdown };
     }).sort((a, b) => b.importance_score - a.importance_score);
 
-    // pick main + ops (deterministic)
     const mainPicked = pickMainDiverse(enriched);
     const used = new Set(mainPicked.map((x) => x.url));
     const opsPicked = pickOps(enriched, used);
 
-    // Decide whether we call OpenAI
     const elapsed = Date.now() - startedAt;
     const remaining = FUNC_BUDGET_MS - elapsed;
 
@@ -473,8 +434,9 @@ ${JSON.stringify(pack)}
     let payload = null;
     let openaiDebug = { ok: false, status: 0, error: null, raw_preview: "" };
 
+    // ★残り時間が十分なときだけAIを呼ぶ（abort激減）
     if (remaining >= MIN_AI_REMAIN_MS) {
-      const ai = await callOpenAI(openaiKey, mainPicked, opsPicked);
+      const ai = await callOpenAIResponses(openaiKey, mainPicked, opsPicked);
       ai_ok = !!ai.ok;
       openaiDebug = {
         ok: ai.ok,
@@ -482,13 +444,9 @@ ${JSON.stringify(pack)}
         error: ai.ok ? null : ai.error,
         raw_preview: ai.rawText || ""
       };
-
-      if (ai.ok) {
-        payload = ai.json;
-      }
+      if (ai.ok) payload = ai.json;
     }
 
-    // Fallback if AI not ok
     if (!payload) {
       payload = {
         main_items: mainPicked.map(makeFallbackBriefItem),
@@ -496,10 +454,9 @@ ${JSON.stringify(pack)}
       };
     }
 
-    // Attach metadata + normalize output
     const out = {
       date_iso: new Date().toISOString().slice(0, 10),
-      items: payload.main_items || [],     // 互換：従来items
+      items: payload.main_items || [],
       main_items: payload.main_items || [],
       ops_items: payload.ops_items || [],
       generated_at: new Date().toISOString(),
@@ -509,7 +466,6 @@ ${JSON.stringify(pack)}
       cache: { hit: false, ttl_seconds: Math.floor(CACHE_TTL_MS / 1000) }
     };
 
-    // debug info
     if (debug) {
       out.debug = {
         ai_ok,
@@ -525,7 +481,6 @@ ${JSON.stringify(pack)}
       };
     }
 
-    // Cache store
     const etag = `"${sha1Like(JSON.stringify(out))}"`;
     global.__AIBRIEF_CACHE__ = { at: Date.now(), payload: out, etag };
 
