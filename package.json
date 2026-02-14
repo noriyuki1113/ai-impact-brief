@@ -1,0 +1,9 @@
+{
+  "name": "ai-impact-brief",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "rss-parser": "^3.13.0"
+  }
+}
