@@ -1,3 +1,4 @@
+// /api/today.js (or /pages/api/today.js)  ※Vercel Node runtime想定
 import Parser from "rss-parser";
 
 export const config = { runtime: "nodejs" };
@@ -5,11 +6,11 @@ export const config = { runtime: "nodejs" };
 /**
  * BUILD_ID: プロダクトのアイデンティティ
  */
-const BUILD_ID = "STRATEGIC_AI_BRIEF_V4_DEBUGSAFE";
+const BUILD_ID = "STRATEGIC_AI_BRIEF_V4_STABLE_FULL";
 
 // ====== 制御設定 (Tunables) ======
-const FETCH_TIMEOUT_MS = 6500;     // RSS/Guardian取得
-const OPENAI_TIMEOUT_MS = 20000;   // OpenAI呼び出し
+const FETCH_TIMEOUT_MS = 6500;
+const OPENAI_TIMEOUT_MS = 20000;
 const OUTPUT_ITEMS = 3;
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15分
 
@@ -23,6 +24,7 @@ const RSS_SOURCES = [
   { name: "AINOW", url: "https://ainow.ai/feed/", jp: true, weight: 0.7, hint: "product" },
 ];
 
+// 許可ホスト（安全＆品質コントロール）
 const ALLOW_HOSTS = [
   "theguardian.com",
   "openai.com",
@@ -35,9 +37,7 @@ const ALLOW_HOSTS = [
 
 let CACHE = { at: 0, payload: null, etag: "" };
 
-// ====== 小物ユーティリティ ======
-const nowISODate = () => new Date().toISOString().slice(0, 10);
-
+// ====== 基本ユーティリティ ======
 const sha1Like = (s) => {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -47,9 +47,11 @@ const sha1Like = (s) => {
   return (h >>> 0).toString(16);
 };
 
+const nowISODate = () => new Date().toISOString().slice(0, 10);
+
 function normalizeUrl(raw) {
   try {
-    const u = new URL((raw || "").trim());
+    const u = new URL(raw);
     const params = new URLSearchParams(u.search);
     [...params.keys()].forEach((k) => k.toLowerCase().startsWith("utm_") && params.delete(k));
     u.search = params.toString() ? `?${params.toString()}` : "";
@@ -60,25 +62,37 @@ function normalizeUrl(raw) {
   }
 }
 
-function hostAllowed(url) {
-  try {
-    const h = new URL(url).hostname.replace(/^www\./, "");
-    return ALLOW_HOSTS.some((a) => h === a || h.endsWith("." + a));
-  } catch {
-    return false;
-  }
-}
-
 function timeoutFetch(url, opts = {}, timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-// ====== トピック推定 (誤検知対策済み) ======
+function clamp(n, lo, hi) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return lo;
+  return Math.max(lo, Math.min(hi, x));
+}
+
+function normalizeImpactLevel(v) {
+  const s = String(v || "").toLowerCase();
+  if (s === "high") return "High";
+  if (s === "medium") return "Medium";
+  if (s === "low") return "Low";
+  return "Medium";
+}
+
+function ensureArray2to4(arr, fallback) {
+  const a = Array.isArray(arr) ? arr.filter(Boolean) : [];
+  if (a.length >= 2) return a.slice(0, 4);
+  const fb = Array.isArray(fallback) ? fallback : [];
+  return [...a, ...fb].filter(Boolean).slice(0, 4);
+}
+
+// ====== トピック推定（誤検知対策あり） ======
 function guessTopic(title, hint) {
   const t = (title || "").toLowerCase();
-  // 「方法/手法」の「法」で誤爆しないように: (?<![方手])法
+  // 「方法」「手法」を除外した「法」にのみ反応（lookbehind使用）
   const isRegulation =
     /regulat|law|act|ban|suit|court|antitrust|訴訟|規制|法案|司法|裁判|(?<![方手])法/.test(t);
   if (isRegulation) return "regulation";
@@ -89,7 +103,7 @@ function guessTopic(title, hint) {
   return hint || "other";
 }
 
-// ====== 戦略的スコアリング ======
+// ====== 戦略的スコアリング（公開スコアの核） ======
 function scoreCandidate(c) {
   let s = 40;
   s += Math.round((c.weight || 0.8) * 20);
@@ -99,35 +113,39 @@ function scoreCandidate(c) {
   const bonus = { regulation: 20, funding: 15, supply_chain: 15, product: 5, research: 5 };
   s += bonus[c.topic] || 0;
 
-  s = Math.max(0, Math.min(95, s));
+  s = clamp(s, 0, 95);
+
   return {
     score: s,
     breakdown: {
-      market_impact: Math.min(40, Math.round(s * 0.4)),
-      business_impact: Math.min(30, Math.round(s * 0.3)),
-      japan_relevance: Math.min(25, c.jp ? 20 : 10),
-      confidence: 10, // ここは将来、ソース数/一致度で変える余地あり
+      market_impact: clamp(Math.round(s * 0.4), 0, 40),
+      business_impact: clamp(Math.round(s * 0.3), 0, 30),
+      japan_relevance: clamp(c.jp ? 20 : 10, 0, 25),
+      confidence: 10, // ここは後でAI側で微調整してもOK
     },
   };
 }
 
-// ====== Guardian取得 ======
+// ====== データ取得 ======
 async function fetchGuardian(key) {
   const url =
-    `https://content.guardianapis.com/search` +
-    `?section=technology&order-by=newest&page-size=12&show-fields=trailText&api-key=${encodeURIComponent(key)}`;
+    "https://content.guardianapis.com/search" +
+    `?section=technology&order-by=newest&page-size=10&show-fields=trailText` +
+    `&api-key=${encodeURIComponent(key)}`;
 
   try {
-    const res = await timeoutFetch(url, {}, FETCH_TIMEOUT_MS);
+    const res = await timeoutFetch(url);
     if (!res.ok) return [];
     const data = await res.json();
     return (data?.response?.results || []).map((a) => ({
       source: "The Guardian",
       url: normalizeUrl(a.webUrl),
-      title: a.webTitle || "",
+      title: a.webTitle,
       summary: String(a.fields?.trailText || "")
         .replace(/<[^>]*>?/gm, "")
-        .trim(),
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 600),
       jp: false,
       weight: 0.95,
       hint: "market",
@@ -137,22 +155,21 @@ async function fetchGuardian(key) {
   }
 }
 
-// ====== RSS取得（安全） ======
 async function fetchRssSafe(parser, src) {
   try {
-    const res = await timeoutFetch(src.url, {}, FETCH_TIMEOUT_MS);
+    const res = await timeoutFetch(src.url);
     if (!res.ok) return [];
     const xml = await res.text();
     const feed = await parser.parseString(xml);
-
     return (feed.items || []).slice(0, 10).map((it) => ({
       source: src.name,
-      url: normalizeUrl(it.link || ""),
-      title: it.title || "",
+      url: normalizeUrl(it.link),
+      title: it.title,
       summary: String(it.contentSnippet || it.content || "")
-        .slice(0, 500)
         .replace(/\s+/g, " ")
-        .trim(),
+        .replace(/<[^>]*>?/gm, "")
+        .trim()
+        .slice(0, 600),
       jp: !!src.jp,
       weight: src.weight,
       hint: src.hint,
@@ -162,10 +179,9 @@ async function fetchRssSafe(parser, src) {
   }
 }
 
-// ====== 多様性を維持したトップ選出 ======
+// ====== 多様性を保ったTop3選出 ======
 function pickDiverseTop(candidates) {
   const enriched = candidates
-    .filter((c) => c?.url && c?.title)
     .map((c) => {
       const topic = guessTopic(c.title, c.hint);
       const { score, breakdown } = scoreCandidate({ ...c, topic });
@@ -179,13 +195,12 @@ function pickDiverseTop(candidates) {
 
   for (const c of enriched) {
     if (picked.length >= OUTPUT_ITEMS) break;
-
     let host = "";
     try {
-      host = new URL(c.url).hostname.replace(/^www\./, "");
+      host = new URL(c.url).hostname;
     } catch {}
 
-    // 同一ホストNG、同一トピックは最大1つ
+    // 同一ホストNG＆同一トピックは原則1つ
     if (!usedHosts.has(host) && !usedTopics.has(c.topic)) {
       picked.push(c);
       usedHosts.add(host);
@@ -193,7 +208,7 @@ function pickDiverseTop(candidates) {
     }
   }
 
-  // 補填（多様性で足りない場合）
+  // 補填（足りない場合はスコア順で埋める）
   let i = 0;
   while (picked.length < OUTPUT_ITEMS && i < enriched.length) {
     if (!picked.find((p) => p.url === enriched[i].url)) picked.push(enriched[i]);
@@ -203,36 +218,150 @@ function pickDiverseTop(candidates) {
   return picked.slice(0, OUTPUT_ITEMS);
 }
 
-// ====== OpenAI 呼び出し（デバッグ情報を返す） ======
+// ====== フォールバック（AI失敗時でもフロント崩さない） ======
+function fallbackPayload(picked) {
+  const items = picked.map((p) => ({
+    impact_level: p.topic === "regulation" ? "High" : "Medium",
+    importance_score: p.importance_score ?? 60,
+    score_breakdown: p.score_breakdown ?? {
+      market_impact: 20,
+      business_impact: 20,
+      japan_relevance: p.jp ? 20 : 10,
+      confidence: 10,
+    },
+    title_ja: String(p.title || "タイトルなし").slice(0, 60),
+    one_sentence: String(p.summary || p.title || "要約なし").slice(0, 120),
+    why_it_matters: "市場・戦略判断に影響し得るため。",
+    japan_impact: p.jp ? "国内動向として優先的に注視。" : "海外動向として波及可能性を注視。",
+    tags: [p.topic || "other"],
+    fact_summary: [
+      `出典: ${p.source || "unknown"}`,
+      `要点: ${(p.summary || p.title || "").slice(0, 60)}`,
+    ].slice(0, 4),
+    implications: ["示唆: 競争環境や投資判断への影響があり得る", "示唆: 日本市場への波及可能性を点検"],
+    outlook: ["見通し: 追加発表・規制・決算などを注視", "見通し: 次の製品更新/政策動向が焦点"],
+    original_title: String(p.title || ""),
+    original_url: String(p.url || ""),
+    source: String(p.source || ""),
+    topic: String(p.topic || "other"),
+  }));
+
+  // High最大1件に矯正
+  let highSeen = false;
+  for (const it of items) {
+    if (it.impact_level === "High") {
+      if (!highSeen) highSeen = true;
+      else it.impact_level = "Medium";
+    }
+  }
+
+  return { date_iso: nowISODate(), items };
+}
+
+// ====== AI出力を必ず完全スキーマへ正規化（勝ち筋） ======
+function normalizePayload(aiPayload, picked) {
+  const items = (aiPayload?.items || []).map((it, i) => {
+    const base = picked[i] || {};
+    const title = base.title || it?.title_ja || "タイトルなし";
+    const summary = base.summary || "";
+
+    const importance_score = it?.importance_score ?? base.importance_score ?? 60;
+
+    const score_breakdown =
+      it?.score_breakdown ??
+      base.score_breakdown ?? {
+        market_impact: 20,
+        business_impact: 20,
+        japan_relevance: base.jp ? 20 : 10,
+        confidence: 10,
+      };
+
+    return {
+      impact_level: normalizeImpactLevel(
+        it?.impact_level || (base.topic === "regulation" ? "High" : "Medium")
+      ),
+      importance_score: clamp(importance_score, 0, 100),
+      score_breakdown: {
+        market_impact: clamp(score_breakdown.market_impact, 0, 40),
+        business_impact: clamp(score_breakdown.business_impact, 0, 30),
+        japan_relevance: clamp(score_breakdown.japan_relevance, 0, 25),
+        confidence: clamp(score_breakdown.confidence, 0, 20),
+      },
+      title_ja: String(it?.title_ja || title).slice(0, 60),
+      one_sentence: String(it?.one_sentence || summary || title).slice(0, 120),
+      why_it_matters: String(it?.why_it_matters || "市場・戦略判断に影響し得るため。").slice(0, 200),
+      japan_impact: String(
+        it?.japan_impact || (base.jp ? "国内動向として優先的に注視。" : "海外動向として波及可能性を注視。")
+      ).slice(0, 240),
+      tags:
+        Array.isArray(it?.tags) && it.tags.length
+          ? it.tags.filter(Boolean).slice(0, 4)
+          : [base.topic || it?.topic || "other"],
+      fact_summary: ensureArray2to4(it?.fact_summary, [
+        `出典: ${base.source || it?.source || "unknown"}`,
+        `要点: ${(summary || title).slice(0, 60)}`,
+      ]),
+      implications: ensureArray2to4(it?.implications, [
+        "示唆: 競争環境や投資判断への影響があり得る",
+        "示唆: 日本市場への波及可能性を点検",
+      ]),
+      outlook: ensureArray2to4(it?.outlook, [
+        "見通し: 追加発表・規制・決算などを注視",
+        "見通し: 次の製品更新/政策動向が焦点",
+      ]),
+      original_title: String(it?.original_title || base.title || ""),
+      original_url: String(it?.original_url || base.url || ""),
+      source: String(it?.source || base.source || ""),
+      topic: String(it?.topic || base.topic || "other"),
+    };
+  });
+
+  // itemsが3つ揃わないときはフォールバック
+  if (!Array.isArray(items) || items.length !== OUTPUT_ITEMS) {
+    return fallbackPayload(picked);
+  }
+
+  // High最大1件に矯正
+  let highSeen = false;
+  for (const it of items) {
+    if (it.impact_level === "High") {
+      if (!highSeen) highSeen = true;
+      else it.impact_level = "Medium";
+    }
+  }
+
+  return { date_iso: nowISODate(), items };
+}
+
+// ====== OpenAI呼び出し（完全スキーマ強制） ======
 async function callOpenAI(oKey, picked, debug) {
   const system = [
     "あなたは冷静で知的な戦略アナリストです。",
-    "感情的・扇動的表現は禁止。断定しすぎない。",
-    "日本市場の視点で評価し、スコア(importance_score/score_breakdown)を活かして文章を補強。",
-    "必ず有効なJSONのみを返す。Markdownや説明文は禁止。",
+    "煽り禁止。断定しすぎない。根拠が弱い場合は控えめに。",
+    "必ず『有効なJSONのみ』を返す。Markdownや説明文は禁止。",
+    "",
+    "【最重要】出力は items 配列(3件)で、各itemに必須キーを全て含めること。",
+    "欠損キーがある場合は、空文字ではなく、最小限でも内容を埋めること。",
+    "fact_summary/implications/outlookは各2〜4個、tagsは1〜4個。",
+    "Highは最大1件。",
   ].join("\n");
 
-  const user = {
+  const input = picked.map((p, idx) => ({
+    id: `n${idx + 1}`,
+    title: p.title,
+    summary: p.summary,
+    topic: p.topic,
+    source: p.source,
+    original_title: p.title,
+    original_url: p.url,
+    importance_score: p.importance_score,
+    score_breakdown: p.score_breakdown,
+    jp: p.jp,
+  }));
+
+  const task = {
     date_iso: nowISODate(),
-    items: picked.map((p) => ({
-      impact_level: "", // モデルに最終分類させる
-      importance_score: p.importance_score,
-      score_breakdown: p.score_breakdown,
-      title: p.title,
-      summary: p.summary,
-      topic: p.topic,
-      source: p.source,
-      original_url: p.url,
-      jp: p.jp,
-    })),
-    rules: {
-      items_count: OUTPUT_ITEMS,
-      impact_level: "High|Medium|Low",
-      high_max: 1,
-      arrays_len: "fact_summary/implications/outlook は各2〜4",
-      length: "各項目は50文字目安、title_jaは30文字目安、one_sentenceは60文字目安",
-      tone: "煽り禁止、主観断定禁止、丁寧で簡潔",
-    },
+    news: input,
   };
 
   const controller = new AbortController();
@@ -244,24 +373,58 @@ async function callOpenAI(oKey, picked, debug) {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${oKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${oKey}` },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         temperature: 0.2,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
-          { role: "user", content: JSON.stringify(user) },
+          {
+            role: "user",
+            content: JSON.stringify({
+              output_schema_example: {
+                date_iso: "YYYY-MM-DD",
+                items: [
+                  {
+                    impact_level: "High|Medium|Low",
+                    importance_score: 0,
+                    score_breakdown: {
+                      market_impact: 0,
+                      business_impact: 0,
+                      japan_relevance: 0,
+                      confidence: 0,
+                    },
+                    title_ja: "",
+                    one_sentence: "",
+                    why_it_matters: "",
+                    japan_impact: "",
+                    tags: ["regulation|funding|supply_chain|product|research|other"],
+                    fact_summary: ["", ""],
+                    implications: ["", ""],
+                    outlook: ["", ""],
+                    original_title: "",
+                    original_url: "",
+                    source: "",
+                    topic: "",
+                  },
+                ],
+              },
+              rules: {
+                items_count: 3,
+                high_max: 1,
+                tone: "知的・簡潔・非扇動",
+              },
+              task,
+            }),
+          },
         ],
       }),
     });
 
     debugInfo.status = res.status;
-
     const text = await res.text().catch(() => "");
+
     if (!res.ok) {
       debugInfo.error = {
         kind: "http_error",
@@ -296,15 +459,7 @@ async function callOpenAI(oKey, picked, debug) {
       throw new Error("OpenAI content is not valid JSON");
     }
 
-    // 軽いスキーマ検証
-    if (!payload?.items || !Array.isArray(payload.items) || payload.items.length !== OUTPUT_ITEMS) {
-      debugInfo.error = { kind: "schema_invalid", payload_preview: JSON.stringify(payload).slice(0, 900) };
-      throw new Error("OpenAI schema invalid: items must be 3");
-    }
-
     debugInfo.ok = true;
-
-    // debug時だけ返す情報
     return { payload, debugInfo };
   } catch (err) {
     if (err?.name === "AbortError") {
@@ -312,164 +467,141 @@ async function callOpenAI(oKey, picked, debug) {
     } else if (!debugInfo.error) {
       debugInfo.error = { kind: "exception", name: err?.name, message: err?.message || String(err) };
     }
-    if (!debug) {
-      // 本番は詳細を隠す
-      debugInfo.error = { kind: debugInfo.error?.kind || "error" };
-    }
+    if (!debug) debugInfo.error = { kind: debugInfo.error?.kind || "error" };
     return { payload: null, debugInfo };
   } finally {
     clearTimeout(id);
   }
 }
 
-// ====== フォールバック（OpenAI失敗時でも表示を崩さない） ======
-function fallbackPayload(picked) {
-  // 影響度は暫定：topicから雑に決める（OpenAI成功時に置き換わる）
-  const impactByTopic = {
-    regulation: "High",
-    funding: "Medium",
-    supply_chain: "Medium",
-    product: "Medium",
-    research: "Low",
-    other: "Low",
-  };
-
-  const items = picked.map((p) => ({
-    impact_level: impactByTopic[p.topic] || "Medium",
-    importance_score: p.importance_score,
-    score_breakdown: p.score_breakdown,
-    title_ja: p.title, // 暫定：原題
-    one_sentence: (p.summary || p.title || "").slice(0, 80),
-    why_it_matters: "（AI分析失敗のため一時的に自動要約を省略）",
-    japan_impact: p.jp
-      ? "国内ソースとして優先表示（詳細は元記事参照）"
-      : "海外動向として日本企業への波及可能性を注視（詳細は元記事参照）",
-    tags: [p.topic],
-    fact_summary: [
-      `出典: ${p.source}`,
-      `要点: ${(p.summary || p.title || "").slice(0, 80)}`,
-    ],
-    implications: ["示唆: 競争環境や投資判断への影響があり得る"],
-    outlook: ["見通し: 追加発表・規制・決算などを注視"],
-    original_title: p.title,
-    original_url: p.url,
-    source: p.source,
-    topic: p.topic,
-  }));
-
-  // Highが複数になったら調整
-  const highs = items.filter((i) => i.impact_level === "High");
-  if (highs.length > 1) {
-    let first = true;
-    for (const it of items) {
-      if (it.impact_level === "High") {
-        if (first) first = false;
-        else it.impact_level = "Medium";
-      }
-    }
-  }
-
-  return {
-    date_iso: nowISODate(),
-    items,
-  };
-}
-
-// ====== メイン ======
+// ====== メインハンドラー ======
 export default async function handler(req, res) {
-  // CORS（あなたの現状に合わせて * のまま）
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // ---- Robust-ish CORS ----
+  const origin = req.headers.origin;
+  res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  res.setHeader("Vary", "Origin");
+  const reqAllowedHeaders = req.headers["access-control-request-headers"];
+  res.setHeader("Access-Control-Allow-Headers", reqAllowedHeaders || "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
 
+  const gKey = process.env.GUARDIAN_API_KEY;
+  const oKey = process.env.OPENAI_API_KEY;
+
+  if (!gKey) return res.status(500).json({ error: "GUARDIAN_API_KEY is missing" });
+  if (!oKey) return res.status(500).json({ error: "OPENAI_API_KEY is missing" });
+
+  // Debug flag: /api/today?debug=1
   const urlObj = new URL(req.url, "https://example.com");
   const debug = urlObj.searchParams.get("debug") === "1";
 
-  const gKey = process.env.GUARDIAN_API_KEY;
-  const oKey = process.env.OPENAI_API_KEY;
-  if (!gKey || !oKey) return res.status(500).json({ error: "Missing API Keys" });
+  // ETag
+  const ifNoneMatch = req.headers["if-none-match"];
+  if (CACHE.payload && CACHE.etag && ifNoneMatch && ifNoneMatch === CACHE.etag) {
+    res.statusCode = 304;
+    return res.end();
+  }
 
-  // キャッシュ（ETag対応）
+  // TTL Cache
   if (CACHE.payload && Date.now() - CACHE.at < CACHE_TTL_MS) {
-    const clientEtag = req.headers["if-none-match"];
-    if (clientEtag && CACHE.etag && clientEtag === CACHE.etag) {
-      return res.status(304).end();
-    }
-    res.setHeader("ETag", CACHE.etag);
-    return res.status(200).json({ ...CACHE.payload, cache: { hit: true, ttl_seconds: Math.floor((CACHE_TTL_MS - (Date.now() - CACHE.at)) / 1000) } });
+    res.setHeader("ETag", CACHE.etag || "");
+    return res.status(200).json({
+      ...CACHE.payload,
+      cache: { hit: true, ttl_seconds: Math.max(0, Math.floor((CACHE_TTL_MS - (Date.now() - CACHE.at)) / 1000)) },
+    });
   }
 
   try {
     const parser = new Parser();
 
     // 1) 並列取得
-    const settled = await Promise.allSettled([
+    const results = await Promise.allSettled([
       fetchGuardian(gKey),
       ...RSS_SOURCES.map((src) => fetchRssSafe(parser, src)),
     ]);
 
-    const allCandidates = settled
+    const allCandidates = results
       .filter((r) => r.status === "fulfilled")
-      .flatMap((r) => r.value || [])
-      .filter((c) => c?.url && hostAllowed(c.url));
+      .flatMap((r) => r.value)
+      .filter((c) => {
+        // allowlist host filter
+        try {
+          const host = new URL(c.url).hostname;
+          return ALLOW_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+        } catch {
+          return false;
+        }
+      });
 
-    // 2) 多様性を保って3件選ぶ
+    if (!allCandidates.length) {
+      return res.status(502).json({ error: "No candidates fetched", version: BUILD_ID, generated_at: new Date().toISOString() });
+    }
+
+    // 2) 多様性維持してTop3選出
     const picked = pickDiverseTop(allCandidates);
 
-    // 3) OpenAIで整形（失敗してもフォールバックする）
+    // 3) OpenAI
     const { payload: aiPayload, debugInfo } = await callOpenAI(oKey, picked, debug);
 
     let payload;
     let ai_ok = false;
 
     if (aiPayload) {
-      payload = aiPayload;
+      payload = normalizePayload(aiPayload, picked); // ★必ず完全形にする
       ai_ok = true;
     } else {
       payload = fallbackPayload(picked);
       ai_ok = false;
     }
 
-    // 4) メタデータ付与
+    // 4) メタデータ
     payload.generated_at = new Date().toISOString();
     payload.version = BUILD_ID;
     payload.build_id = `${BUILD_ID}__${nowISODate()}`;
     payload.sources = Array.from(new Set(picked.map((p) => p.source)));
 
-    // 5) debug情報（ここが “完全デバッグ対応” の核心）
-    if (debug) {
-      payload.debug = {
-        ai_ok,
-        openai: debugInfo, // ★失敗理由がここに入る（status/AbortError/body_preview 等）
-        merged_count: allCandidates.length,
-        picked: picked.map((p) => {
-          let host = "";
-          try { host = new URL(p.url).hostname.replace(/^www\./, ""); } catch {}
-          return { source: p.source, host, topic: p.topic, score: p.importance_score, url: p.url };
-        }),
-        timeouts: { fetch: FETCH_TIMEOUT_MS, openai: OPENAI_TIMEOUT_MS },
-      };
-    } else {
-      // 本番でも最低限だけ
-      payload.ai_ok = ai_ok;
-    }
-
-    // 6) キャッシュ保存（ETag）
+    // 5) キャッシュ
     const etag = `"${sha1Like(JSON.stringify(payload))}"`;
     CACHE = { at: Date.now(), payload, etag };
+
     res.setHeader("ETag", etag);
 
-    return res.status(200).json({ ...payload, cache: { hit: false, ttl_seconds: Math.floor(CACHE_TTL_MS / 1000) } });
+    if (debug) {
+      return res.status(200).json({
+        ...payload,
+        debug: {
+          ai_ok,
+          openai: debugInfo,
+          merged_count: allCandidates.length,
+          picked: picked.map((p) => ({
+            source: p.source,
+            host: (() => {
+              try { return new URL(p.url).hostname; } catch { return ""; }
+            })(),
+            topic: p.topic,
+            score: p.importance_score,
+            url: p.url,
+          })),
+          timeouts: { fetch: FETCH_TIMEOUT_MS, openai: OPENAI_TIMEOUT_MS },
+        },
+        cache: { hit: false, ttl_seconds: Math.floor(CACHE_TTL_MS / 1000) },
+      });
+    }
+
+    return res.status(200).json({
+      ...payload,
+      cache: { hit: false, ttl_seconds: Math.floor(CACHE_TTL_MS / 1000) },
+    });
   } catch (err) {
-    // ここもdebug時だけ詳細
     return res.status(500).json({
       error: err?.message || String(err),
-      ...(debug ? { stack: err?.stack } : {}),
-      generated_at: new Date().toISOString(),
       version: BUILD_ID,
+      generated_at: new Date().toISOString(),
+      stack: debug ? err?.stack : undefined,
     });
   }
 }
