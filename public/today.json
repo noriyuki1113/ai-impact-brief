@@ -66,7 +66,7 @@
         "japan_relevance": 15,
         "confidence": 5
       },
-      "title_ja": "WeatherNext: AI model achieves",
+      "title_ja": "TutorMoments: Do AI tutors kno",
       "one_sentence": "要約なし",
       "fact_summary": [
         "情報なし",
@@ -80,17 +80,17 @@
         "次回更新で追記",
         "追加ソースで補強予定"
       ],
-      "original_title": "WeatherNext: AI model achieves breakthrough in forecasting cyclones",
-      "original_url": "https://deepmind.google/blog/weathernext-ai-model-achieves-breakthrough-in-forecasting-cyclones",
-      "published_at": "2026-08-06T15:06:15+00:00",
-      "source": "DeepMind Blog"
+      "original_title": "TutorMoments: Do AI tutors know when to help and when to hold back?",
+      "original_url": "https://huggingface.co/blog/allenai/tutormoments",
+      "published_at": "2026-08-07T17:53:32+00:00",
+      "source": "Hugging Face Blog"
     }
   ],
-  "generated_at": "2026-08-07T01:33:15.797331+00:00",
+  "generated_at": "2026-08-07T22:51:18.007109+00:00",
   "version": "B1-RSS-Fallback-1.0",
   "sources": [
-    "DeepMind Blog",
     "Google AI Blog",
+    "Hugging Face Blog",
     "VentureBeat AI"
   ]
 }
